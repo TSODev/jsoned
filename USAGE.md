@@ -47,15 +47,18 @@ jsoned uses a 3-panel layout:
 │ status bar · breadcrumb · hints        │
 ```
 
-- **Source** — annotated JSON with line numbers; highlights the selected node. Toggle with `[`.
+- **Source [[]** — annotated JSON with line numbers; highlights the selected node. Toggle with `[`.
 - **Explorer** — key / type / value table; main interaction surface.
-- **Detail** — JSON preview of the selected node; becomes the value editor during `e`. Toggle with `]`.
+- **Detail []** — JSON preview of the selected node; becomes the value editor during `e`. Toggle with `]`.
+
+The status bar shows two lines:
+- **Line 1** — `filename [modified]  ·  item.0.current.time` — file name and dot-notation path of the selected node (compatible with terapi's path format)
+- **Line 2** — contextual keybinding hints for the current mode
 
 ## Navigation
 
 `↑` / `↓` or `k` / `j` move the cursor one row at a time.  
-`PgUp` / `PgDn` jump 20 rows.  
-The status bar always shows the breadcrumb path of the selected node.
+`PgUp` / `PgDn` jump 20 rows.
 
 ## Folding and unfolding
 
