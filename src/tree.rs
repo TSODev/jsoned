@@ -103,6 +103,53 @@ pub struct FlatRow {
     pub is_last_sibling: bool,
 }
 
+pub fn get_node_at_path<'a>(root: &'a JNode, path: &[JKey]) -> Option<&'a JNode> {
+    if path.is_empty() {
+        return Some(root);
+    }
+    match root {
+        JNode::Object { entries, .. } => {
+            if let JKey::Field(k) = &path[0] {
+                entries.get(k).and_then(|c| get_node_at_path(c, &path[1..]))
+            } else {
+                None
+            }
+        }
+        JNode::Array { items, .. } => {
+            if let JKey::Index(i) = path[0] {
+                items.get(i).and_then(|c| get_node_at_path(c, &path[1..]))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+pub fn set_node_at_path(root: &mut JNode, path: &[JKey], new_node: JNode) {
+    if path.is_empty() {
+        *root = new_node;
+        return;
+    }
+    match root {
+        JNode::Object { entries, .. } => {
+            if let JKey::Field(k) = &path[0] {
+                if let Some(child) = entries.get_mut(k) {
+                    set_node_at_path(child, &path[1..], new_node);
+                }
+            }
+        }
+        JNode::Array { items, .. } => {
+            if let JKey::Index(i) = path[0] {
+                if let Some(child) = items.get_mut(i) {
+                    set_node_at_path(child, &path[1..], new_node);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 pub fn flatten(root: &JNode) -> Vec<FlatRow> {
     let mut rows = Vec::new();
     flatten_node(root, 0, None, None, &[], true, &mut rows);
