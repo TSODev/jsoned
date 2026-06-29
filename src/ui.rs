@@ -526,7 +526,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         };
         (h, Color::DarkGray)
     } else {
-        ("  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  s: save  q: quit", Color::DarkGray)
+        ("  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  f: fullscreen  s: save  q: quit", Color::DarkGray)
     };
 
     let lines = vec![

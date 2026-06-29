@@ -55,6 +55,9 @@ pub struct App {
     pub clipboard: Option<JNode>,
     pub show_left: bool,
     pub show_preview: bool,
+    pub explorer_fullscreen: bool,
+    pub saved_show_left: bool,
+    pub saved_show_preview: bool,
     pub undo_stack: Vec<JNode>,
     pub redo_stack: Vec<JNode>,
 }
@@ -80,6 +83,7 @@ impl App {
             file, modified: false, status, quit: false, confirm_quit: false, save_dialog: false,
             edit: None, clipboard: None,
             show_left: true, show_preview: true,
+            explorer_fullscreen: false, saved_show_left: true, saved_show_preview: true,
             undo_stack: Vec::new(), redo_stack: Vec::new(),
         })
     }
@@ -161,8 +165,9 @@ impl App {
             (KeyModifiers::SHIFT, Char('E')) | (KeyModifiers::NONE, Char('E')) => { self.confirm_quit = false; self.expand_all(); }
             (KeyModifiers::SHIFT, Char('C')) | (KeyModifiers::NONE, Char('C')) => { self.confirm_quit = false; self.collapse_all(); }
             (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
-            (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.show_left = !self.show_left; }
-            (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.show_preview = !self.show_preview; }
+            (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
+            (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
+            (KeyModifiers::NONE, Char('f')) => { self.confirm_quit = false; self.toggle_explorer_fullscreen(); }
             _ => { self.confirm_quit = false; }
         }
     }
@@ -806,6 +811,20 @@ impl App {
             set_all_collapsed(node, true);
         }
         self.refresh_flat();
+    }
+
+    fn toggle_explorer_fullscreen(&mut self) {
+        if self.explorer_fullscreen {
+            self.show_left    = self.saved_show_left;
+            self.show_preview = self.saved_show_preview;
+            self.explorer_fullscreen = false;
+        } else {
+            self.saved_show_left    = self.show_left;
+            self.saved_show_preview = self.show_preview;
+            self.show_left    = false;
+            self.show_preview = false;
+            self.explorer_fullscreen = true;
+        }
     }
 }
 
