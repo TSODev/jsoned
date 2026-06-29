@@ -168,6 +168,12 @@ impl App {
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
             (KeyModifiers::NONE, Char('f')) => { self.confirm_quit = false; self.toggle_explorer_fullscreen(); }
+            (KeyModifiers::NONE, Esc) => {
+                self.confirm_quit = false;
+                self.status = self.file.as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "new file".to_string());
+            }
             _ => { self.confirm_quit = false; }
         }
     }
