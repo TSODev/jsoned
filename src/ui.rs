@@ -64,7 +64,7 @@ fn render_left(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray))
-        .title(Span::styled(" JSON ", Style::default().fg(Color::DarkGray)));
+        .title(Span::styled(" Source ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -117,7 +117,8 @@ fn seg_color(c: SegColor) -> Color {
 fn render_table(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Span::styled(" Explorer ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -240,7 +241,8 @@ fn node_value_display(node: &JNode) -> (String, Color) {
 fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray));
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Span::styled(" Detail ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
