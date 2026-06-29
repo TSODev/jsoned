@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Ctrl+C` — immediate quit (bypasses the double-`q` confirmation)
 
 ### Changed
+- CSV export rewritten — dot-notation flattening + 1-level explosion of arrays of objects; arrays of scalars joined with `;`; depth-2+ arrays serialized as JSON strings; root can now be an object or an array
 - Selection highlight: teal-blue background (`Indexed(25)`) — replaces the near-invisible dark grey
 - Collapse/expand arrows: `▶` / `▼` — replaces `>` / `v`
 - `e` restricted to scalar nodes only — pressing `e` on an Object or Array shows a hint instead of opening the editor

@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context, Result};
+use indexmap::IndexMap;
 use std::path::Path;
 
 pub fn convert_file(input: &Path, to_fmt: &str, output: Option<&Path>) -> Result<()> {
@@ -62,27 +63,117 @@ fn csv_to_json(src: &str) -> Result<serde_json::Value> {
 }
 
 fn json_to_csv(value: &serde_json::Value) -> Result<String> {
-    let arr = value.as_array().ok_or_else(|| anyhow!("CSV export requires a JSON array at root"))?;
-    if arr.is_empty() {
+    let roots: Vec<&serde_json::Value> = match value {
+        serde_json::Value::Array(arr) => arr.iter().collect(),
+        obj @ serde_json::Value::Object(_) => vec![obj],
+        _ => return Err(anyhow!("CSV export requires a JSON object or array at root")),
+    };
+
+    if roots.is_empty() {
         return Ok(String::new());
     }
-    let headers: Vec<String> = arr[0].as_object()
-        .ok_or_else(|| anyhow!("CSV export requires an array of objects"))?
-        .keys().cloned().collect();
+
+    let mut flat_rows: Vec<IndexMap<String, String>> = Vec::new();
+    for root in roots {
+        flat_rows.extend(flatten_to_rows(root, "", true));
+    }
+
+    if flat_rows.is_empty() {
+        return Ok(String::new());
+    }
+
+    // Collect headers in first-seen order across all rows
+    let mut headers: Vec<String> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for row in &flat_rows {
+        for key in row.keys() {
+            if seen.insert(key.clone()) {
+                headers.push(key.clone());
+            }
+        }
+    }
 
     let mut wtr = csv::Writer::from_writer(vec![]);
     wtr.write_record(&headers)?;
-    for row in arr {
-        let obj = row.as_object().ok_or_else(|| anyhow!("each row must be an object"))?;
-        let record: Vec<String> = headers.iter()
-            .map(|h| obj.get(h).map(|v| value_to_csv_str(v)).unwrap_or_default())
+    for row in &flat_rows {
+        let record: Vec<&str> = headers.iter()
+            .map(|h| row.get(h).map(|s| s.as_str()).unwrap_or(""))
             .collect();
         wtr.write_record(&record)?;
     }
     Ok(String::from_utf8(wtr.into_inner()?)?)
 }
 
-fn value_to_csv_str(v: &serde_json::Value) -> String {
+// Flatten one JSON value into one or more CSV rows.
+// allow_explode=true: the first array-of-objects field is expanded into N rows.
+// allow_explode=false: arrays are serialized into a single cell (used for nested levels).
+fn flatten_to_rows(value: &serde_json::Value, prefix: &str, allow_explode: bool) -> Vec<IndexMap<String, String>> {
+    let obj = match value.as_object() {
+        Some(o) => o,
+        None => {
+            let mut row = IndexMap::new();
+            let key = if prefix.is_empty() { "value".to_string() } else { prefix.to_string() };
+            row.insert(key, scalar_to_str(value));
+            return vec![row];
+        }
+    };
+
+    let mut base: IndexMap<String, String> = IndexMap::new();
+    let mut explode_key: Option<String> = None;
+    let mut explode_items: Vec<&serde_json::Value> = Vec::new();
+
+    for (key, val) in obj {
+        let full_key = if prefix.is_empty() { key.clone() } else { format!("{}.{}", prefix, key) };
+
+        match val {
+            serde_json::Value::Null          => { base.insert(full_key, String::new()); }
+            serde_json::Value::Bool(b)       => { base.insert(full_key, b.to_string()); }
+            serde_json::Value::Number(n)     => { base.insert(full_key, n.to_string()); }
+            serde_json::Value::String(s)     => { base.insert(full_key, s.clone()); }
+            serde_json::Value::Object(_)     => {
+                let sub = flatten_to_rows(val, &full_key, false);
+                if let Some(row) = sub.into_iter().next() {
+                    base.extend(row);
+                }
+            }
+            serde_json::Value::Array(arr)    => {
+                if allow_explode && explode_key.is_none()
+                    && !arr.is_empty()
+                    && arr.iter().all(|v| v.is_object())
+                {
+                    explode_key = Some(full_key);
+                    explode_items = arr.iter().collect();
+                } else {
+                    base.insert(full_key, serialize_array_cell(arr));
+                }
+            }
+        }
+    }
+
+    if let Some(exp_key) = explode_key {
+        let mut result = Vec::new();
+        for item in explode_items {
+            for sub_row in flatten_to_rows(item, &exp_key, false) {
+                let mut row = base.clone();
+                row.extend(sub_row);
+                result.push(row);
+            }
+        }
+        result
+    } else {
+        vec![base]
+    }
+}
+
+fn serialize_array_cell(arr: &[serde_json::Value]) -> String {
+    if arr.iter().all(|v| !v.is_object() && !v.is_array()) {
+        arr.iter().map(scalar_to_str).collect::<Vec<_>>().join(";")
+    } else {
+        serde_json::to_string(arr).unwrap_or_default()
+    }
+}
+
+fn scalar_to_str(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::String(s) => s.clone(),
         serde_json::Value::Null => String::new(),

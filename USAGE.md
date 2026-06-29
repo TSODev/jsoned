@@ -151,7 +151,8 @@ jsoned input.yaml --to json --output output.json
 Supported formats: `json`, `yaml`, `toml`, `csv`
 
 > **TOML** — `null` values are not supported; the conversion will error if the document contains nulls.  
-> **CSV** — export requires the root to be an array of objects; import produces an array of objects.
+> **CSV export** — accepts a root object or array of objects. Nested objects are flattened with dot-notation keys (`address.city`). The first array-of-objects field at each level is exploded into multiple rows (parent fields repeated). Arrays of scalars are joined with `;`. Deeper arrays of objects are serialized as JSON strings.  
+> **CSV import** — produces an array of objects (all values as strings).
 
 ---
 

@@ -94,7 +94,7 @@ See [USAGE.md](USAGE.md) for the full reference.
 | JSON | ✓ | ✓ | Key order preserved |
 | YAML | ✓ | ✓ | |
 | TOML | ✓ | ✓ | `null` values not supported by TOML |
-| CSV | ✓ | ✓ | Root must be an array of objects |
+| CSV | ✓ | ✓ | Export: dot-notation flatten + 1-level explosion; root can be object or array |
 
 ## Author
 
