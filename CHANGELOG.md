@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `` ` `` — toggle Explorer fullscreen (hides Source and Detail, restores previous state on second press)
 - Explorer type icons updated: `"` String · `№` Number · `◆` Boolean · `∅` Null — each icon rendered in its type colour (green / yellow / magenta / dark-grey)
 - `a` on a scalar — adds a sibling after the current node in its parent (Object: prompts key + value; Array: prompts value only); previously only worked on containers
+- `/` — incremental search across keys and values (case-insensitive); matches highlighted in green as you type; `Enter` confirms, `Esc` clears
+- `n` / `N` — jump to next / previous search match with wrap-around; match counter shown in status bar (`[3/12]`)
+- `gg` — jump to first row; `G` — jump to last row
 
 ### Fixed
 - Source panel scroll stabilized at startup — anchors on the selected node without jumping on large documents or on first load

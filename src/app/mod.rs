@@ -61,6 +61,12 @@ pub struct App {
     pub saved_show_preview: bool,
     pub undo_stack: Vec<JNode>,
     pub redo_stack: Vec<JNode>,
+    // Search
+    pub search_query: String,
+    pub search_active: bool,
+    pub search_matches: Vec<usize>, // sorted flat-row indices of matching rows
+    pub search_match_cursor: usize, // which match is current
+    pub pending_g: bool,            // true after first `g` press (waiting for gg)
 }
 
 impl App {
@@ -86,6 +92,8 @@ impl App {
             show_left: true, show_preview: true,
             explorer_fullscreen: false, saved_show_left: true, saved_show_preview: true,
             undo_stack: Vec::new(), redo_stack: Vec::new(),
+            search_query: String::new(), search_active: false,
+            search_matches: Vec::new(), search_match_cursor: 0, pending_g: false,
         })
     }
 
@@ -111,6 +119,11 @@ impl App {
 
         if self.edit.is_some() {
             self.handle_key_edit(key);
+            return;
+        }
+
+        if self.search_active {
+            self.handle_key_search(key);
             return;
         }
 
@@ -166,16 +179,47 @@ impl App {
             (KeyModifiers::SHIFT, Char('E')) | (KeyModifiers::NONE, Char('E')) => { self.confirm_quit = false; self.expand_all(); }
             (KeyModifiers::SHIFT, Char('C')) | (KeyModifiers::NONE, Char('C')) => { self.confirm_quit = false; self.collapse_all(); }
             (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
-            (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
-            (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
-            (KeyModifiers::NONE, Char('`')) => { self.confirm_quit = false; self.toggle_explorer_fullscreen(); }
-            (KeyModifiers::NONE, Esc) => {
+            (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
+            (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
+            (KeyModifiers::NONE, Char('`')) => { self.confirm_quit = false; self.pending_g = false; self.toggle_explorer_fullscreen(); }
+            (KeyModifiers::NONE, Char('/')) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.search_active = true;
+                self.search_query.clear();
+                self.search_matches.clear();
+                self.search_match_cursor = 0;
+            }
+            (KeyModifiers::NONE, Char('n')) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.search_next();
+            }
+            (KeyModifiers::SHIFT, Char('N')) | (KeyModifiers::NONE, Char('N')) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.search_prev();
+            }
+            (KeyModifiers::NONE, Char('g')) => {
                 self.confirm_quit = false;
+                if self.pending_g {
+                    self.pending_g = false;
+                    self.cursor = 0;
+                } else {
+                    self.pending_g = true;
+                }
+            }
+            (KeyModifiers::SHIFT, Char('G')) | (KeyModifiers::NONE, Char('G')) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.cursor = self.flat.len().saturating_sub(1);
+            }
+            (KeyModifiers::NONE, Esc) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.search_query.clear();
+                self.search_matches.clear();
+                self.search_match_cursor = 0;
                 self.status = self.file.as_ref()
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| "new file".to_string());
             }
-            _ => { self.confirm_quit = false; }
+            _ => { self.confirm_quit = false; self.pending_g = false; }
         }
     }
 
@@ -807,6 +851,81 @@ impl App {
         } else {
             self.status = "nothing to redo".to_string();
         }
+    }
+
+    fn handle_key_search(&mut self, key: crossterm::event::KeyEvent) {
+        use KeyCode::*;
+        match (key.modifiers, key.code) {
+            (KeyModifiers::NONE, Esc) => {
+                self.search_active = false;
+                self.search_query.clear();
+                self.search_matches.clear();
+                self.search_match_cursor = 0;
+            }
+            (KeyModifiers::NONE, Enter) => {
+                self.search_active = false;
+                if !self.search_matches.is_empty() {
+                    self.cursor = self.search_matches[self.search_match_cursor];
+                }
+            }
+            (KeyModifiers::NONE, Backspace) => {
+                self.search_query.pop();
+                self.update_search_matches();
+            }
+            (_, Char(c)) if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT => {
+                self.search_query.push(c);
+                self.update_search_matches();
+            }
+            _ => {}
+        }
+    }
+
+    fn update_search_matches(&mut self) {
+        let q = self.search_query.to_lowercase();
+        if q.is_empty() {
+            self.search_matches.clear();
+            self.search_match_cursor = 0;
+            return;
+        }
+        self.search_matches = self.flat.iter().enumerate()
+            .filter(|(_, row)| {
+                let key_match = row.key.as_deref()
+                    .map(|k| k.to_lowercase().contains(&q))
+                    .unwrap_or(false)
+                    || row.index.map(|i| i.to_string().contains(&q)).unwrap_or(false);
+                let val_match = match &row.node {
+                    JNode::Scalar(s) => match s {
+                        JScalar::String(v) => v.to_lowercase().contains(&q),
+                        JScalar::Number(v) => v.contains(&q),
+                        JScalar::Bool(b) => b.to_string().contains(&q),
+                        JScalar::Null => "null".contains(&q),
+                    },
+                    _ => false,
+                };
+                key_match || val_match
+            })
+            .map(|(i, _)| i)
+            .collect();
+        self.search_match_cursor = 0;
+        if let Some(&first) = self.search_matches.first() {
+            self.cursor = first;
+        }
+    }
+
+    fn search_next(&mut self) {
+        if self.search_matches.is_empty() { return; }
+        self.search_match_cursor = (self.search_match_cursor + 1) % self.search_matches.len();
+        self.cursor = self.search_matches[self.search_match_cursor];
+    }
+
+    fn search_prev(&mut self) {
+        if self.search_matches.is_empty() { return; }
+        self.search_match_cursor = if self.search_match_cursor == 0 {
+            self.search_matches.len() - 1
+        } else {
+            self.search_match_cursor - 1
+        };
+        self.cursor = self.search_matches[self.search_match_cursor];
     }
 
     fn start_rename(&mut self) {

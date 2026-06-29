@@ -58,11 +58,11 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.5 — Search + navigation
+## v0.5 — Search + navigation ✅
 
-- [ ] `/` — search by key or value (case-insensitive, highlighted)
-- [ ] `n` / `N` — next / previous match with wrap
-- [ ] Jump to root (`gg`) / end (`G`)
+- [x] `/` — search by key or value (case-insensitive, highlighted)
+- [x] `n` / `N` — next / previous match with wrap
+- [x] Jump to root (`gg`) / end (`G`)
 
 ---
 

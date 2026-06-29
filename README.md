@@ -73,10 +73,13 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `S` | Sort Object children by key |
 | `E` / `C` | Expand all / collapse all from selected |
 | `u` / `Ctrl+R` | Undo / redo |
+| `/` | Search by key or value |
+| `n` / `N` | Next / previous match |
+| `gg` / `G` | Jump to first / last row |
 | `s` | Save |
 | `[` / `]` | Toggle Source / Detail panel |
 | `` ` `` | Toggle Explorer fullscreen |
-| `Esc` | Cancel / clear status |
+| `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
 
 See [USAGE.md](USAGE.md) for the full reference.

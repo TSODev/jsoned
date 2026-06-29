@@ -156,7 +156,12 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
         .skip(app.scroll)
         .take(content_area.height as usize)
         .enumerate()
-        .map(|(i, row)| render_row(row, app.scroll + i == app.cursor, key_w, type_w, val_w))
+        .map(|(i, row)| {
+            let row_idx = app.scroll + i;
+            let is_match = !app.search_matches.is_empty()
+                && app.search_matches.binary_search(&row_idx).is_ok();
+            render_row(row, row_idx == app.cursor, is_match, key_w, type_w, val_w)
+        })
         .collect();
 
     f.render_widget(Paragraph::new(rows), content_area);
@@ -215,8 +220,8 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
     f.render_widget(Paragraph::new(lines), inner);
 }
 
-fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
-    let bg = if selected { Color::Indexed(25) } else { Color::Reset };
+fn render_row(row: &FlatRow, selected: bool, is_match: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
+    let bg = if selected { Color::Indexed(25) } else if is_match { Color::Indexed(22) } else { Color::Reset };
 
     let toggle = match &row.node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
@@ -504,15 +509,36 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
     let dot_path = build_dot_path(&cursor_path);
 
-    // Line 1: filename · dot-path
-    let line1 = if dot_path.is_empty() {
-        format!(" {}{}", app.status, modified)
+    // Line 1: search input OR filename · dot-path [· match X/N]
+    let line1 = if app.search_active {
+        format!(" / {}_", app.search_query)
     } else {
-        format!(" {}{}  ·  {}", app.status, modified, dot_path)
+        let base = if dot_path.is_empty() {
+            format!(" {}{}", app.status, modified)
+        } else {
+            format!(" {}{}  ·  {}", app.status, modified, dot_path)
+        };
+        if !app.search_matches.is_empty() {
+            format!("{}  ·  [{}/{}]", base, app.search_match_cursor + 1, app.search_matches.len())
+        } else if !app.search_query.is_empty() {
+            format!("{}  ·  [no match]", base)
+        } else {
+            base
+        }
     };
 
     // Line 2: contextual hints — background Indexed(236), text/bg vary by context
-    let hint_line = if app.confirm_quit {
+    let hint_line = if app.search_active {
+        Line::from(Span::styled(
+            "  Enter: go to match  Esc: cancel",
+            Style::default().fg(Color::Cyan).bg(Color::Indexed(236)),
+        ))
+    } else if !app.search_matches.is_empty() {
+        Line::from(Span::styled(
+            "  n/N: next/prev match  Esc: clear  /: new search",
+            Style::default().fg(Color::Cyan).bg(Color::Indexed(236)),
+        ))
+    } else if app.confirm_quit {
         Line::from(Span::styled(
             "  Press q again to quit  (any other key to cancel)",
             Style::default().fg(Color::White).bg(Color::Indexed(52)),

@@ -92,6 +92,27 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 | `E` | Expand all — recursively unfold the selected node and its descendants |
 | `C` | Collapse all — recursively fold the selected node and its descendants |
 
+## Search
+
+Press `/` to open the search bar. Type to filter — matching rows are highlighted green as you type. The status bar shows `[X/N]` match count.
+
+| Key | Action |
+|-----|--------|
+| `/` | Open search |
+| `Enter` | Confirm and move cursor to current match |
+| `Esc` | Cancel search, clear highlights |
+| `n` | Jump to next match (wraps) |
+| `N` | Jump to previous match (wraps) |
+
+> Search matches visible rows only — collapsed subtrees are not searched.
+
+## Jump navigation
+
+| Key | Action |
+|-----|--------|
+| `gg` | Jump to first row |
+| `G` | Jump to last row |
+
 ## Undo and redo
 
 | Key | Action |
@@ -166,6 +187,16 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `s` | Save |
 
+### Search
+
+| Key | Action |
+|-----|--------|
+| `/` | Open search |
+| `n` | Next match |
+| `N` | Previous match |
+| `gg` | Jump to first row |
+| `G` | Jump to last row |
+
 ### View
 
 | Key | Action |
@@ -173,7 +204,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `[` | Toggle Source panel |
 | `]` | Toggle Detail panel |
 | `` ` `` | Toggle Explorer fullscreen (hides Source + Detail; press again to restore) |
-| `Esc` | Clear status message / cancel confirm-quit |
+| `Esc` | Clear search / clear status / cancel confirm-quit |
 
 ### Quit
 
