@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Source and Detail panel titles now display their toggle key (`[[]` and `[]`)
 - `` ` `` — toggle Explorer fullscreen (hides Source and Detail, restores previous state on second press)
 - Explorer type icons updated: `"` String · `№` Number · `◆` Boolean · `∅` Null — each icon rendered in its type colour (green / yellow / magenta / dark-grey)
+- `w` — wrap the selected node in an Array (`[node]`) or Object (`{ "key": node }`); type dropdown shows Array / Object; Object prompts for a key name
 - `a` on a scalar — adds a sibling after the current node in its parent (Object: prompts key + value; Array: prompts value only); previously only worked on containers
 - `/` — incremental search across keys and values (case-insensitive); matches highlighted in green as you type; `Enter` confirms, `Esc` clears
 - `n` / `N` — jump to next / previous search match with wrap-around; match counter shown in status bar (`[3/12]`)

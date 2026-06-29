@@ -21,6 +21,7 @@ pub enum EditMode {
     Edit,      // editing an existing node (v0.3)
     AddChild,  // adding a new child to a container
     Rename,    // renaming an existing key in an Object
+    Wrap,      // wrapping the selected node in an Object or Array
 }
 
 pub enum EditPhase {
@@ -173,6 +174,7 @@ impl App {
             (KeyModifiers::SHIFT, Char('P')) | (KeyModifiers::NONE, Char('P')) => { self.confirm_quit = false; self.paste_node(false); }
             (KeyModifiers::SHIFT, Char('K')) | (KeyModifiers::NONE, Char('K')) => { self.confirm_quit = false; self.move_node(true); }
             (KeyModifiers::SHIFT, Char('J')) | (KeyModifiers::NONE, Char('J')) => { self.confirm_quit = false; self.move_node(false); }
+            (KeyModifiers::NONE, Char('w')) => { self.confirm_quit = false; self.pending_g = false; self.start_wrap(); }
             (KeyModifiers::NONE, Char('u')) => { self.confirm_quit = false; self.undo(); }
             (KeyModifiers::CONTROL, Char('r')) => { self.confirm_quit = false; self.redo(); }
             (KeyModifiers::SHIFT, Char('S')) | (KeyModifiers::NONE, Char('S')) => { self.confirm_quit = false; self.sort_children(); }
@@ -261,7 +263,8 @@ impl App {
                 }
                 Down => {
                     if let Some(s) = self.edit.as_mut() {
-                        s.type_cursor = (s.type_cursor + 1).min(5);
+                        let max = if matches!(s.mode, EditMode::Wrap) { 1 } else { 5 };
+                        s.type_cursor = (s.type_cursor + 1).min(max);
                     }
                 }
                 Enter | Tab => self.confirm_type(),
@@ -393,6 +396,22 @@ impl App {
             EditMode::Edit     => self.confirm_type_edit(state),
             EditMode::AddChild => self.confirm_type_add(state),
             EditMode::Rename   => {} // TypeSelect is not reachable from Rename
+            EditMode::Wrap     => self.confirm_type_wrap(state),
+        }
+    }
+
+    fn confirm_type_wrap(&mut self, state: EditState) {
+        match state.type_cursor {
+            0 => {
+                // Object: need a key name
+                let ta = tui_textarea::TextArea::new(vec![String::new()]);
+                self.show_preview = true;
+                self.edit = Some(EditState { phase: EditPhase::KeyEdit(ta), ..state });
+            }
+            _ => {
+                // Array: wrap immediately
+                self.do_wrap(state.path, None);
+            }
         }
     }
 
@@ -474,6 +493,11 @@ impl App {
             return;
         }
 
+        if matches!(state.mode, EditMode::Wrap) {
+            self.do_wrap(state.path, Some(key));
+            return;
+        }
+
         let path = state.path.clone();
         let tc = state.type_cursor;
 
@@ -536,6 +560,7 @@ impl App {
                 }
             }
             EditMode::Rename => {} // ValueEdit is not reachable from Rename
+            EditMode::Wrap   => {} // ValueEdit is not reachable from Wrap
         }
     }
 
@@ -926,6 +951,42 @@ impl App {
             self.search_match_cursor - 1
         };
         self.cursor = self.search_matches[self.search_match_cursor];
+    }
+
+    fn start_wrap(&mut self) {
+        let Some(row) = self.flat.get(self.cursor) else { return };
+        let path = row.path.clone();
+        self.edit = Some(EditState {
+            path,
+            mode: EditMode::Wrap,
+            original: None,
+            phase: EditPhase::TypeSelect,
+            type_cursor: 1, // default to Array
+            pending_key: None,
+            insert_after: None,
+        });
+    }
+
+    fn do_wrap(&mut self, path: JPath, key_opt: Option<String>) {
+        let original = match get_node_at_path(&self.root, &path) {
+            Some(n) => n.clone(),
+            None => return,
+        };
+        self.push_undo();
+        let wrapped = match key_opt {
+            None => JNode::Array { items: vec![original], collapsed: false },
+            Some(k) => {
+                let mut entries = indexmap::IndexMap::new();
+                entries.insert(k, original);
+                JNode::Object { entries, collapsed: false }
+            }
+        };
+        set_node_at_path(&mut self.root, &path, wrapped);
+        self.refresh_flat();
+        self.modified = true;
+        if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
+            self.cursor = pos;
+        }
     }
 
     fn start_rename(&mut self) {

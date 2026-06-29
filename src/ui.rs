@@ -202,9 +202,10 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
     f.render_widget(block, area);
 
     let skip = if matches!(state.mode, EditMode::Edit) { 2 } else { 0 };
+    let take = if matches!(state.mode, EditMode::Wrap) { 2 } else { inner.height as usize };
     let lines: Vec<Line> = EDIT_TYPES.iter().enumerate()
         .skip(skip)
-        .take(inner.height as usize)
+        .take(take)
         .map(|(i, name)| {
             let selected = i == state.type_cursor;
             let (fg, bg) = if selected {
@@ -405,6 +406,12 @@ fn render_value_editor(
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
             ))
         }
+        EditMode::Wrap => {
+            Line::from(Span::styled(
+                format!(" Wrap in {}", type_name),
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ))
+        }
     };
 
     f.render_widget(Paragraph::new(title), parts[0]);
@@ -549,9 +556,13 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
                 "  ↑↓: type  Enter: confirm  Esc: cancel",
             (EditPhase::TypeSelect, EditMode::Edit) =>
                 "  ↑↓: type  Enter: confirm  Esc: cancel",
+            (EditPhase::TypeSelect, EditMode::Wrap) =>
+                "  ↑↓: Object / Array  Enter: wrap  Esc: cancel",
             (EditPhase::TypeSelect, EditMode::Rename) => "",
             (EditPhase::KeyEdit(_), EditMode::Rename) =>
                 "  Enter: rename  Esc: cancel",
+            (EditPhase::KeyEdit(_), EditMode::Wrap) =>
+                "  key name for wrapper Object  Enter: wrap  Esc: cancel",
             (EditPhase::KeyEdit(_), _) =>
                 "  key name  Enter: confirm  Esc: cancel",
             (EditPhase::ValueEdit(_), _) =>

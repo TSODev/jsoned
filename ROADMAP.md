@@ -53,7 +53,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 - [x] `u` / `Ctrl+R` — undo / redo (50-level history stack per session)
 - [x] `S` — sort Object children alphabetically by key
 - [x] `E` / `C` — expand all / collapse all recursively from selected node
-- [ ] Wrap node in Object / Array
+- [x] Wrap node in Object / Array (`w`)
 - [x] `a` on a scalar — add sibling after current node (Object: key + value; Array: value only)
 
 ---

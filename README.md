@@ -72,6 +72,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `y` / `p` / `P` | Copy / paste after / paste before |
 | `S` | Sort Object children by key |
 | `E` / `C` | Expand all / collapse all from selected |
+| `w` | Wrap node in Array or Object |
 | `u` / `Ctrl+R` | Undo / redo |
 | `/` | Search by key or value |
 | `n` / `N` | Next / previous match |
