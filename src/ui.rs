@@ -20,19 +20,37 @@ pub fn render(f: &mut Frame, app: &App) {
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
-    let h_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-        .split(main_chunks[0]);
+    let content = main_chunks[0];
 
-    let v_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-        .split(h_chunks[1]);
+    // Left panel optional
+    let (left_area, right_area) = if app.show_left {
+        let h = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+            .split(content);
+        (Some(h[0]), h[1])
+    } else {
+        (None, content)
+    };
 
-    render_left(f, app, h_chunks[0]);
-    render_table(f, app, v_chunks[0]);
-    render_preview(f, app, v_chunks[1]);
+    // Preview panel optional
+    let (table_area, preview_area) = if app.show_preview {
+        let v = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
+            .split(right_area);
+        (v[0], Some(v[1]))
+    } else {
+        (right_area, None)
+    };
+
+    if let Some(la) = left_area {
+        render_left(f, app, la);
+    }
+    render_table(f, app, table_area);
+    if let Some(pa) = preview_area {
+        render_preview(f, app, pa);
+    }
     render_status(f, app, main_chunks[1]);
 
     if app.editing.is_some() {
@@ -286,7 +304,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
 
     let text = format!(
-        " {}{}  ·  {}    e: edit  s: save  Space: fold  q: quit ",
+        " {}{}  ·  {}    e: edit  s: save  Space: fold  [: left  ]: preview  q: quit ",
         app.status, modified, breadcrumb
     );
     f.render_widget(

@@ -26,6 +26,8 @@ pub struct App {
     pub status: String,
     pub quit: bool,
     pub editing: Option<(tui_textarea::TextArea<'static>, JPath)>,
+    pub show_left: bool,
+    pub show_preview: bool,
 }
 
 impl App {
@@ -48,6 +50,7 @@ impl App {
             cursor: 0, scroll: 0, left_scroll: 0,
             file, modified: false, status, quit: false,
             editing: None,
+            show_left: true, show_preview: true,
         })
     }
 
@@ -94,6 +97,8 @@ impl App {
             }
             (KeyModifiers::NONE, Char('e')) => self.start_edit(),
             (KeyModifiers::NONE, Char('s')) => self.save_file(),
+            (KeyModifiers::NONE, Char('[')) => self.show_left = !self.show_left,
+            (KeyModifiers::NONE, Char(']')) => self.show_preview = !self.show_preview,
             _ => {}
         }
     }
