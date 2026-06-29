@@ -713,15 +713,19 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
         if let Some(row) = app.flat.get(app.cursor) {
             let cp = &row.path;
             let first = app.annotated.iter().position(|al| al.path.starts_with(cp.as_slice()));
-            let last = app.annotated.iter().rposition(|al| al.path.starts_with(cp.as_slice()));
+            let last  = app.annotated.iter().rposition(|al| al.path.starts_with(cp.as_slice()));
             if let Some(f0) = first {
+                let l0 = last.unwrap_or(f0);
+                let block_h = l0 - f0 + 1;
                 if f0 < app.left_scroll {
+                    // Top of block scrolled out of view: bring it back
                     app.left_scroll = f0;
-                } else if let Some(l0) = last {
-                    if l0 >= app.left_scroll + left_inner_h {
-                        app.left_scroll = l0 + 1 - left_inner_h;
-                    }
+                } else if block_h <= left_inner_h && l0 >= app.left_scroll + left_inner_h {
+                    // Block fits in view but bottom is below: scroll to reveal bottom
+                    app.left_scroll = l0 + 1 - left_inner_h;
                 }
+                // If block is larger than the view (e.g. root, large container):
+                // keep current scroll — no need to chase the bottom
             }
         }
 

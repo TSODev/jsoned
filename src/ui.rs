@@ -218,7 +218,7 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
         }
         _ => "  ",
     };
-    let (icon, icon_col) = node_icon(&row.node);
+    let (icon, _icon_col) = node_icon(&row.node);
 
     let key_name = match (&row.key, row.index) {
         (Some(k), _) => k.clone(),
