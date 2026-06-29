@@ -172,6 +172,8 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `[` | Toggle Source panel |
 | `]` | Toggle Detail panel |
+| `f` | Toggle Explorer fullscreen (hides Source + Detail; press again to restore) |
+| `Esc` | Clear status message / cancel confirm-quit |
 
 ### Quit
 

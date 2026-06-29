@@ -33,11 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type dropdown in Edit mode shows only scalar types (String / Number / Boolean / Null) — Object and Array are excluded to prevent accidental container destruction
 - Quit safety: first `q` shows a confirmation hint in the status bar; second `q` quits (no changes) or opens the save dialog (unsaved changes)
 - Status bar split into two lines: line 1 shows `filename [modified]  ·  item.0.current.time` (dot-notation path, terapi-compatible); line 2 shows contextual keybinding hints
+- Hint bar (status bar line 2) now has a styled background: dark grey (`Indexed(236)`) in normal mode with light grey text, yellow text in edit mode (matches active panel borders), dark red background (`Indexed(52)`) with white text for quit confirmation
 - Source/Explorer panel ratio changed to 30/70 (was 45/55)
 - Source and Detail panel titles now display their toggle key (`[[]` and `[]`)
+- `f` — toggle Explorer fullscreen (hides Source and Detail, restores previous state on second press)
 
 ### Fixed
 - Source panel scroll stabilized at startup — anchors on the selected node without jumping on large documents or on first load
+- `Esc` in normal mode now clears transient status messages (e.g. "cannot delete root") and resets to filename
 
 ---
 
