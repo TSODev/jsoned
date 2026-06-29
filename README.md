@@ -75,7 +75,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `u` / `Ctrl+R` | Undo / redo |
 | `s` | Save |
 | `[` / `]` | Toggle Source / Detail panel |
-| `f` | Toggle Explorer fullscreen |
+| `` ` `` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear status |
 | `q` | Quit |
 

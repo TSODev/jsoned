@@ -36,7 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hint bar (status bar line 2) now has a styled background: dark grey (`Indexed(236)`) in normal mode with light grey text, yellow text in edit mode (matches active panel borders), dark red background (`Indexed(52)`) with white text for quit confirmation
 - Source/Explorer panel ratio changed to 30/70 (was 45/55)
 - Source and Detail panel titles now display their toggle key (`[[]` and `[]`)
-- `f` — toggle Explorer fullscreen (hides Source and Detail, restores previous state on second press)
+- `` ` `` — toggle Explorer fullscreen (hides Source and Detail, restores previous state on second press)
+- Explorer type icons updated: `"` String · `№` Number · `◆` Boolean · `∅` Null — each icon rendered in its type colour (green / yellow / magenta / dark-grey)
 
 ### Fixed
 - Source panel scroll stabilized at startup — anchors on the selected node without jumping on large documents or on first load

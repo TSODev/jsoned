@@ -224,7 +224,7 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
         }
         _ => "  ",
     };
-    let (icon, _icon_col) = node_icon(&row.node);
+    let (icon, icon_col) = node_icon(&row.node);
 
     let key_name = match (&row.key, row.index) {
         (Some(k), _) => k.clone(),
@@ -232,10 +232,18 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
         (None, None) => "<root>".to_string(),
     };
 
-    let prefix = format!("{}{}{} ", "  ".repeat(row.depth), toggle, icon);
-    let avail = key_w.saturating_sub(prefix.chars().count());
+    let key_col = match &row.node {
+        JNode::Scalar(_) => Color::Cyan,
+        _ => Color::White,
+    };
+
+    // Split key column into 3 spans so the icon gets its own color
+    let pre = format!("{}{}", "  ".repeat(row.depth), toggle);
+    let pre_len   = pre.chars().count();
+    let icon_len  = icon.chars().count();
+    let avail     = key_w.saturating_sub(pre_len + icon_len + 1);
     let name_trunc: String = key_name.chars().take(avail).collect();
-    let key_cell = format!("{:<width$}", format!("{}{}", prefix, name_trunc), width = key_w);
+    let post = format!(" {:<width$}", name_trunc, width = avail);
 
     let type_str = node_type_label(&row.node);
     let type_cell = format!("{:<width$}", type_str.chars().take(type_w).collect::<String>(), width = type_w);
@@ -243,16 +251,13 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
     let (val_str, val_col) = node_value_display(&row.node);
     let val_trunc: String = val_str.chars().take(val_w).collect();
 
-    let key_col = match &row.node {
-        JNode::Scalar(_) => Color::Cyan,
-        _ => Color::White,
-    };
-
     Line::from(vec![
-        Span::styled(key_cell, Style::default().fg(key_col).bg(bg)),
-        Span::styled("  ", Style::default().bg(bg)),
+        Span::styled(pre,      Style::default().fg(key_col).bg(bg)),
+        Span::styled(icon,     Style::default().fg(icon_col).bg(bg)),
+        Span::styled(post,     Style::default().fg(key_col).bg(bg)),
+        Span::styled("  ",     Style::default().bg(bg)),
         Span::styled(type_cell, Style::default().fg(Color::DarkGray).bg(bg)),
-        Span::styled("  ", Style::default().bg(bg)),
+        Span::styled("  ",     Style::default().bg(bg)),
         Span::styled(val_trunc, Style::default().fg(val_col).bg(bg)),
     ]).style(Style::default().bg(bg))
 }
@@ -261,10 +266,10 @@ fn node_icon(node: &JNode) -> (&'static str, Color) {
     match node {
         JNode::Object { .. }               => ("{}", Color::Yellow),
         JNode::Array { .. }                => ("[]", Color::Cyan),
-        JNode::Scalar(JScalar::String(_))  => (" A", Color::Green),
-        JNode::Scalar(JScalar::Number(_))  => (" #", Color::Yellow),
-        JNode::Scalar(JScalar::Bool(_))    => (" ~", Color::Magenta),
-        JNode::Scalar(JScalar::Null)       => (" -", Color::DarkGray),
+        JNode::Scalar(JScalar::String(_))  => (" \"", Color::Green),
+        JNode::Scalar(JScalar::Number(_))  => (" №", Color::Yellow),
+        JNode::Scalar(JScalar::Bool(_))    => (" ◆", Color::Magenta),
+        JNode::Scalar(JScalar::Null)       => (" ∅", Color::DarkGray),
     }
 }
 
@@ -532,7 +537,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         ))
     } else {
         Line::from(Span::styled(
-            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  f: fullscreen  s: save  q: quit",
+            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  `: fullscreen  s: save  q: quit",
             Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
         ))
     };
