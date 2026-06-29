@@ -11,7 +11,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.1 — Viewer *(current)*
+## v0.1 — Viewer ✅
 
 - [x] Mutable tree model (`JNode`) — foundation for editing
 - [x] Flat render model — efficient display of large documents
@@ -22,37 +22,50 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.2 — Scalar editing
+## v0.2 — Scalar editing ✅
 
-- [ ] Inline editor for scalar values (`i` — pre-filled `tui-textarea`, `Enter` confirms)
-- [ ] Type-aware validation on save (number format, bool values)
-- [ ] Save to original file (`w`) — same format as input
-- [ ] Modified indicator in status bar
-- [ ] Quit confirmation when unsaved changes exist
-
----
-
-## v0.3 — Structural editing + undo
-
-- [ ] Rename a key (`r`)
-- [ ] Add a field or array element after cursor (`a`)
-- [ ] Delete selected node (`d`) with confirmation
-- [ ] Undo / redo — history stack per session (`u` / `Ctrl+R`)
-- [ ] Move a field up / down within an object (`K` / `J`)
-- [ ] Duplicate a node (`D`)
+- [x] 3-panel TUI layout — Source / Explorer / Detail
+- [x] Breadcrumb path in status bar
+- [x] `e` — inline scalar editor: type dropdown (String / Number / Boolean / Null) + value editor in Detail panel
+- [x] Type conversion between scalar types with sensible defaults
+- [x] `s` — save to original file (JSON pretty-print)
+- [x] Modified indicator in status bar
 
 ---
 
-## v0.4 — Search + navigation
+## v0.3 — Node actions ✅
+
+- [x] `a` — add child (Object or Array parent)
+- [x] `d` — delete selected node
+- [x] `D` — duplicate selected node
+- [x] `K` / `J` — move node up / down within its parent
+- [x] `y` — copy node to clipboard
+- [x] `p` / `P` — paste after / before cursor
+- [x] Save dialog popup when quitting with unsaved changes
+- [x] Double-`q` confirmation before quit
+- [x] `[` / `]` — toggle Source / Detail panels
+
+---
+
+## v0.4 — Structural editing
+
+- [ ] `r` — rename a key (objects only)
+- [ ] `u` / `Ctrl+R` — undo / redo (history stack per session)
+- [ ] Sort children by key (`S`)
+- [ ] Expand all / collapse all (`E` / `C`)
+- [ ] Wrap node in Object / Array
+
+---
+
+## v0.5 — Search + navigation
 
 - [ ] `/` — search by key or value (case-insensitive, highlighted)
 - [ ] `n` / `N` — next / previous match with wrap
 - [ ] Jump to root (`gg`) / end (`G`)
-- [ ] Expand all / collapse all (`E` / `C`)
 
 ---
 
-## v0.5 — Save as + format conversion TUI
+## v0.6 — Save as + format conversion TUI
 
 - [ ] `W` — save-as dialog with format picker (json / yaml / toml / csv)
 - [ ] Conversion warnings inline (e.g. null values incompatible with TOML)
@@ -60,7 +73,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.6 — JSON Schema validation
+## v0.7 — JSON Schema validation
 
 - [ ] `--schema schema.json` CLI flag — load a JSON Schema
 - [ ] Validation errors shown inline (red highlight on failing nodes)
@@ -69,7 +82,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.7 — Advanced features
+## v0.8 — Advanced features
 
 - [ ] **Semantic diff** — compare two files side-by-side (`jsoned --diff a.json b.json`)
 - [ ] **jq filter** — `/` prefix runs a jq expression, results shown in a preview panel

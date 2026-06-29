@@ -4,15 +4,13 @@
 
 - [Installation](#installation)
 - [Opening a file](#opening-a-file)
+- [Layout](#layout)
 - [Navigation](#navigation)
 - [Folding and unfolding](#folding-and-unfolding)
 - [Editing values](#editing-values)
 - [Editing structure](#editing-structure)
-- [Undo and redo](#undo-and-redo)
-- [Search](#search)
 - [Saving](#saving)
 - [Format conversion](#format-conversion)
-  - [Interactive](#interactive)
   - [Headless](#headless)
 - [Keybinding reference](#keybinding-reference)
 
@@ -34,50 +32,68 @@ jsoned data.csv        # CSV → JSON array of objects
 jsoned                 # start with an empty object
 ```
 
+## Layout
+
+jsoned uses a 3-panel layout:
+
+```
+┌─────────────┬──────────────────────────┐
+│             │  Explorer (key/type/val) │
+│   Source    ├──────────────────────────┤
+│  (JSON +    │                          │
+│ line nums)  │   Detail (node preview)  │
+│             │                          │
+└─────────────┴──────────────────────────┘
+│ status bar · breadcrumb · hints        │
+```
+
+- **Source** — annotated JSON with line numbers; highlights the selected node. Toggle with `[`.
+- **Explorer** — key / type / value table; main interaction surface.
+- **Detail** — JSON preview of the selected node; becomes the value editor during `e`. Toggle with `]`.
+
 ## Navigation
 
-`↑` / `↓` or `j` / `k` move the cursor one row at a time.
-`PgUp` / `PgDn` jump 20 rows. The status bar always shows the dot-path of the selected node.
+`↑` / `↓` or `k` / `j` move the cursor one row at a time.  
+`PgUp` / `PgDn` jump 20 rows.  
+The status bar always shows the breadcrumb path of the selected node.
 
 ## Folding and unfolding
 
-Press `Enter` or `Space` on an object or array to toggle it collapsed.
+Press `Enter` or `Space` on an object or array to toggle it collapsed.  
 Collapsed nodes show an inline preview: `{…} (3 fields)` or `[…] (5 items)`.
 
 ## Editing values
 
-Press `i` on a scalar node to open the inline editor (pre-filled with the current value).
-`Enter` confirms, `Esc` cancels.
+Press `e` on a **scalar** node (String, Number, Boolean, Null) to open the inline editor:
+
+1. A type dropdown appears — choose String / Number / Boolean / Null with `↑` / `↓`, confirm with `Enter`.
+2. The Detail panel becomes an editable text field pre-filled with the current value.
+3. `Enter` confirms, `Esc` cancels.
+
+Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify containers.
 
 ## Editing structure
 
 | Key | Action |
 |-----|--------|
-| `r` | Rename the selected key (objects only) |
-| `a` | Add a field / element after the cursor |
+| `a` | Add a child to the selected Object or Array |
 | `d` | Delete the selected node |
-
-## Undo and redo
-
-`u` undoes the last change. `Ctrl+R` redoes it. History is per-session and not persisted.
-
-## Search
-
-`/` opens a search bar. Type to filter nodes by key or value (case-insensitive).
-`n` / `N` jump to the next / previous match. `Esc` closes search.
+| `D` | Duplicate the selected node (inserted immediately after) |
+| `K` | Move the selected node up within its parent |
+| `J` | Move the selected node down within its parent |
+| `y` | Copy the selected node to the clipboard |
+| `p` | Paste clipboard after the selected node |
+| `P` | Paste clipboard before the selected node |
 
 ## Saving
 
 | Key | Action |
 |-----|--------|
-| `w` | Save to the original file (same format) |
-| `W` | Save as — opens a format picker |
+| `s` | Save to the original file (JSON pretty-print) |
+
+When you quit with unsaved changes, a dialog offers: **[s]** save and quit · **[n]** quit without saving · **[Esc]** cancel.
 
 ## Format conversion
-
-### Interactive
-
-Press `W` to open the save-as dialog and choose a target format.
 
 ### Headless
 
@@ -94,27 +110,52 @@ jsoned input.yaml --to json --output output.json
 
 Supported formats: `json`, `yaml`, `toml`, `csv`
 
-> **TOML** — `null` values are not supported; the conversion will error if the document contains nulls.
+> **TOML** — `null` values are not supported; the conversion will error if the document contains nulls.  
 > **CSV** — export requires the root to be an array of objects; import produces an array of objects.
 
 ---
 
 ## Keybinding reference
 
+### Navigation
+
 | Key | Action |
 |-----|--------|
 | `↑` / `k` | Move up |
 | `↓` / `j` | Move down |
 | `PgUp` / `PgDn` | Jump 20 rows |
-| `Enter` / `Space` | Fold / unfold |
-| `i` | Edit selected value |
-| `r` | Rename selected key |
-| `a` | Add field / element |
+| `Enter` / `Space` | Fold / unfold container |
+
+### Editing
+
+| Key | Action |
+|-----|--------|
+| `e` | Edit selected scalar (type dropdown + value editor) |
+| `a` | Add child to selected container |
 | `d` | Delete selected node |
-| `u` | Undo |
-| `Ctrl+R` | Redo |
-| `/` | Search |
-| `n` / `N` | Next / previous match |
-| `w` | Save |
-| `W` | Save as |
-| `q` | Quit |
+| `D` | Duplicate selected node |
+| `K` | Move node up |
+| `J` | Move node down |
+| `y` | Copy node |
+| `p` | Paste after |
+| `P` | Paste before |
+
+### File
+
+| Key | Action |
+|-----|--------|
+| `s` | Save |
+
+### View
+
+| Key | Action |
+|-----|--------|
+| `[` | Toggle Source panel |
+| `]` | Toggle Detail panel |
+
+### Quit
+
+| Key | Action |
+|-----|--------|
+| `q` | Quit (press twice if no unsaved changes; save dialog if modified) |
+| `Ctrl+C` | Force quit immediately |
