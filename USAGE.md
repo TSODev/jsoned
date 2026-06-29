@@ -93,6 +93,7 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 | `p` | Paste clipboard after the selected node |
 | `P` | Paste clipboard before the selected node |
 | `w` | Wrap selected node — choose Array (`[node]`) or Object (`{ "key": node }`) |
+| `W` | Save as — choose format (JSON / YAML / TOML / CSV), then enter filename |
 | `S` | Sort Object children alphabetically by key |
 | `E` | Expand all — recursively unfold the selected node and its descendants |
 | `C` | Collapse all — recursively fold the selected node and its descendants |
@@ -193,6 +194,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | Key | Action |
 |-----|--------|
 | `s` | Save |
+| `W` | Save as (format conversion) |
 
 ### Search
 

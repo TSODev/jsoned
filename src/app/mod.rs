@@ -16,6 +16,19 @@ use crate::{
 
 pub const EDIT_TYPES: [&str; 6] = ["Object", "Array", "String", "Number", "Boolean", "Null"];
 
+pub const SAVE_AS_FORMATS: [&str; 4] = ["JSON", "YAML", "TOML", "CSV"];
+pub const SAVE_AS_EXTS:    [&str; 4] = ["json", "yaml", "toml", "csv"];
+
+pub enum SaveAsPhase {
+    FormatPick,
+    FilenameEdit(tui_textarea::TextArea<'static>),
+}
+
+pub struct SaveAsState {
+    pub phase: SaveAsPhase,
+    pub format_cursor: usize,
+}
+
 #[derive(PartialEq)]
 pub enum EditMode {
     Edit,      // editing an existing node (v0.3)
@@ -68,6 +81,8 @@ pub struct App {
     pub search_matches: Vec<usize>, // sorted flat-row indices of matching rows
     pub search_match_cursor: usize, // which match is current
     pub pending_g: bool,            // true after first `g` press (waiting for gg)
+    // Save-as
+    pub save_as: Option<SaveAsState>,
 }
 
 impl App {
@@ -95,6 +110,7 @@ impl App {
             undo_stack: Vec::new(), redo_stack: Vec::new(),
             search_query: String::new(), search_active: false,
             search_matches: Vec::new(), search_match_cursor: 0, pending_g: false,
+            save_as: None,
         })
     }
 
@@ -115,6 +131,11 @@ impl App {
 
         if self.save_dialog {
             self.handle_save_dialog(key);
+            return;
+        }
+
+        if self.save_as.is_some() {
+            self.handle_key_save_as(key);
             return;
         }
 
@@ -181,6 +202,7 @@ impl App {
             (KeyModifiers::SHIFT, Char('E')) | (KeyModifiers::NONE, Char('E')) => { self.confirm_quit = false; self.expand_all(); }
             (KeyModifiers::SHIFT, Char('C')) | (KeyModifiers::NONE, Char('C')) => { self.confirm_quit = false; self.collapse_all(); }
             (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
+            (KeyModifiers::SHIFT, Char('W')) | (KeyModifiers::NONE, Char('W')) => { self.confirm_quit = false; self.pending_g = false; self.start_save_as(); }
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
             (KeyModifiers::CONTROL, Char('e')) => { self.confirm_quit = false; self.pending_g = false; self.toggle_explorer_fullscreen(); }
@@ -840,6 +862,102 @@ impl App {
         }
     }
 
+    fn start_save_as(&mut self) {
+        self.save_as = Some(SaveAsState {
+            phase: SaveAsPhase::FormatPick,
+            format_cursor: 0,
+        });
+    }
+
+    fn handle_key_save_as(&mut self, key: crossterm::event::KeyEvent) {
+        use KeyCode::*;
+
+        let phase_kind = match self.save_as.as_ref().map(|s| &s.phase) {
+            Some(SaveAsPhase::FormatPick)      => 0,
+            Some(SaveAsPhase::FilenameEdit(_)) => 1,
+            None => return,
+        };
+
+        match phase_kind {
+            0 => match key.code {
+                Esc => { self.save_as = None; }
+                Up   => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = s.format_cursor.saturating_sub(1); } }
+                Down => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = (s.format_cursor + 1).min(3); } }
+                Enter => self.confirm_save_as_format(),
+                _ => {}
+            },
+            _ => match key.code {
+                Esc => {
+                    if let Some(s) = self.save_as.as_mut() {
+                        s.phase = SaveAsPhase::FormatPick;
+                    }
+                }
+                Enter => self.do_save_as(),
+                _ => {
+                    if let Some(s) = self.save_as.as_mut() {
+                        if let SaveAsPhase::FilenameEdit(ta) = &mut s.phase {
+                            ta.input(key);
+                        }
+                    }
+                }
+            },
+        }
+    }
+
+    fn confirm_save_as_format(&mut self) {
+        let cursor = match self.save_as.as_ref() {
+            Some(s) => s.format_cursor,
+            None => return,
+        };
+        let ext = SAVE_AS_EXTS[cursor];
+
+        if ext == "toml" && has_null(&self.root) {
+            self.status = "warning: document contains null values — TOML does not support null".to_string();
+        }
+
+        let default_name = save_as_default_filename(self.file.as_ref(), ext);
+        let mut ta = tui_textarea::TextArea::new(vec![default_name]);
+        ta.move_cursor(tui_textarea::CursorMove::End);
+        self.show_preview = true;
+
+        if let Some(s) = self.save_as.as_mut() {
+            s.phase = SaveAsPhase::FilenameEdit(ta);
+        }
+    }
+
+    fn do_save_as(&mut self) {
+        let (cursor, filename) = match self.save_as.as_ref() {
+            Some(s) => match &s.phase {
+                SaveAsPhase::FilenameEdit(ta) => {
+                    let fname = ta.lines().first().cloned().unwrap_or_default().trim().to_string();
+                    (s.format_cursor, fname)
+                }
+                _ => return,
+            },
+            None => return,
+        };
+
+        if filename.is_empty() {
+            self.status = "filename cannot be empty".to_string();
+            return;
+        }
+
+        let fmt = SAVE_AS_EXTS[cursor];
+        let path = std::path::PathBuf::from(&filename);
+        let value = self.root.to_value();
+
+        match crate::convert::serialize_to(&value, fmt) {
+            Ok(content) => match std::fs::write(&path, &content) {
+                Ok(()) => {
+                    self.save_as = None;
+                    self.status = format!("saved as {}", filename);
+                }
+                Err(e) => { self.status = format!("write error: {e}"); }
+            },
+            Err(e) => { self.status = format!("conversion error: {e}"); }
+        }
+    }
+
     fn toggle_collapse(&mut self) {
         let path = self.current_path();
         toggle_node_collapse(&mut self.root, &path);
@@ -1151,6 +1269,24 @@ fn initial_text(type_cursor: usize, original: &JNode) -> String {
             if current == "true" || current == "false" { current } else { "false".to_string() }
         }
         _ => String::new(),
+    }
+}
+
+fn has_null(node: &JNode) -> bool {
+    match node {
+        JNode::Scalar(JScalar::Null)      => true,
+        JNode::Object { entries, .. }     => entries.values().any(has_null),
+        JNode::Array  { items, .. }       => items.iter().any(has_null),
+        _                                 => false,
+    }
+}
+
+fn save_as_default_filename(file: Option<&PathBuf>, ext: &str) -> String {
+    if let Some(path) = file {
+        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
+        format!("{}.{}", stem, ext)
+    } else {
+        format!("output.{}", ext)
     }
 }
 

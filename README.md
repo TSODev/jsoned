@@ -31,6 +31,7 @@ Keyboard-driven TUI for viewing and editing JSON files — with format conversio
 - **Copy / paste** nodes within the document
 - **Sort** Object children alphabetically; **expand** or **collapse** entire subtrees
 - **Search** — `/` to search keys and values, `n`/`N` to navigate matches
+- **Save as** any supported format with `W` — format picker + filename editor in-TUI
 - **Convert** between JSON, YAML, TOML, and CSV — interactively or headless
 - Dot-path indicator (`address.city`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
@@ -80,6 +81,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `/` | Search by key or value |
 | `n` / `N` | Next / previous match |
 | `s` | Save |
+| `W` | Save as (format picker + filename editor) |
 | `[` / `]` | Toggle Source / Detail panel |
 | `Ctrl+E` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear search / clear status |

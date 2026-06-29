@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, EditMode, EditPhase, EditState, EDIT_TYPES},
+    app::{App, EditMode, EditPhase, EditState, SaveAsPhase, EDIT_TYPES, SAVE_AS_FORMATS},
     pretty::{annotate, SegColor},
     tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
 };
@@ -32,7 +32,11 @@ pub fn render(f: &mut Frame, app: &App) {
         (None, content)
     };
 
-    let (table_area, preview_area) = if app.show_preview {
+    let force_preview = matches!(
+        app.save_as.as_ref().map(|s| &s.phase),
+        Some(SaveAsPhase::FilenameEdit(_))
+    );
+    let (table_area, preview_area) = if app.show_preview || force_preview {
         let v = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
@@ -53,6 +57,11 @@ pub fn render(f: &mut Frame, app: &App) {
 
     if app.save_dialog {
         render_save_dialog(f, area);
+    }
+    if let Some(ref sa) = app.save_as {
+        if matches!(sa.phase, SaveAsPhase::FormatPick) {
+            render_save_as_format_picker(f, area, sa.format_cursor);
+        }
     }
 }
 
@@ -304,13 +313,18 @@ fn node_value_display(node: &JNode) -> (String, Color) {
 // ── Detail: JSON preview · key editor · value editor ────────────────────────
 
 fn render_preview(f: &mut Frame, app: &App, area: Rect) {
+    let save_as_filename = matches!(
+        app.save_as.as_ref().map(|s| &s.phase),
+        Some(SaveAsPhase::FilenameEdit(_))
+    );
+
     let phase_kind = match app.edit.as_ref().map(|s| &s.phase) {
-        Some(EditPhase::KeyEdit(_))  => 1,
+        Some(EditPhase::KeyEdit(_))   => 1,
         Some(EditPhase::ValueEdit(_)) => 2,
         _ => 0,
     };
 
-    let border_col = if phase_kind > 0 { Color::Yellow } else { Color::DarkGray };
+    let border_col = if phase_kind > 0 || save_as_filename { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
@@ -319,6 +333,16 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(block, area);
 
     if inner.height < 2 { return; }
+
+    if save_as_filename {
+        if let Some(ref sa) = app.save_as {
+            if let SaveAsPhase::FilenameEdit(ref ta) = sa.phase {
+                let fmt_name = SAVE_AS_FORMATS.get(sa.format_cursor).copied().unwrap_or("JSON");
+                render_save_as_filename_editor(f, ta, fmt_name, inner);
+                return;
+            }
+        }
+    }
 
     match phase_kind {
         1 => {
@@ -478,6 +502,73 @@ fn render_preview_normal(f: &mut Frame, app: &App, inner: Rect) {
     }
 }
 
+// ── Save-as: format picker popup + filename editor ───────────────────────────
+
+fn render_save_as_format_picker(f: &mut Frame, area: Rect, format_cursor: usize) {
+    let w = 30u16;
+    let h = 8u16;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w.min(area.width), h.min(area.height));
+
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Span::styled(" Save as … ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    let mut lines: Vec<Line> = SAVE_AS_FORMATS.iter().enumerate()
+        .map(|(i, name)| {
+            let selected = i == format_cursor;
+            let (fg, bg) = if selected { (Color::Black, Color::Yellow) } else { (Color::White, Color::Reset) };
+            let marker = if selected { " ▶ " } else { "   " };
+            Line::from(Span::styled(
+                format!("{}{}", marker, name),
+                Style::default().fg(fg).bg(bg),
+            ))
+        })
+        .collect();
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  ↑↓ select  Enter  Esc: cancel",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+fn render_save_as_filename_editor(
+    f: &mut Frame,
+    ta: &tui_textarea::TextArea<'static>,
+    fmt_name: &str,
+    inner: Rect,
+) {
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            format!(" Save as {} — filename", fmt_name),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ))),
+        parts[0],
+    );
+    f.render_widget(ta, parts[1]);
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            " Enter: save  Esc: back to format",
+            Style::default().fg(Color::DarkGray),
+        )),
+        parts[2],
+    );
+}
+
 // ── Save dialog ──────────────────────────────────────────────────────────────
 
 fn render_save_dialog(f: &mut Frame, area: Rect) {
@@ -554,6 +645,12 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
             "  Press q again to quit  (any other key to cancel)",
             Style::default().fg(Color::White).bg(Color::Indexed(52)),
         ))
+    } else if let Some(ref sa) = app.save_as {
+        let h = match &sa.phase {
+            SaveAsPhase::FormatPick      => "  ↑↓: format  Enter: select  Esc: cancel",
+            SaveAsPhase::FilenameEdit(_) => "  Enter: save  Esc: back to format",
+        };
+        Line::from(Span::styled(h, Style::default().fg(Color::Yellow).bg(Color::Indexed(236))))
     } else if let Some(ref state) = app.edit {
         let h = match (&state.phase, &state.mode) {
             (EditPhase::TypeSelect, EditMode::AddChild) =>
@@ -578,7 +675,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         ))
     } else {
         Line::from(Span::styled(
-            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  s: save  q: quit",
+            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  W: save as  s: save  q: quit",
             Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
         ))
     };

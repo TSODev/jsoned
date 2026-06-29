@@ -66,10 +66,10 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.6 — Save as + format conversion TUI
+## v0.6 — Save as + format conversion TUI ✅
 
-- [ ] `W` — save-as dialog with format picker (json / yaml / toml / csv)
-- [ ] Conversion warnings inline (e.g. null values incompatible with TOML)
+- [x] `W` — save-as dialog with format picker (JSON / YAML / TOML / CSV)
+- [x] Conversion warnings inline (null values incompatible with TOML shown in status bar)
 - [ ] Open a second format from an already-open document
 
 ---
