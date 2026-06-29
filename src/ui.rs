@@ -17,7 +17,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .constraints([Constraint::Min(0), Constraint::Length(2)])
         .split(area);
 
     let content = main_chunks[0];
@@ -497,8 +497,16 @@ fn render_save_dialog(f: &mut Frame, area: Rect) {
 fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let modified = if app.modified { " [modified]" } else { "" };
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
-    let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
+    let dot_path = build_dot_path(&cursor_path);
 
+    // Line 1: filename · dot-path
+    let line1 = if dot_path.is_empty() {
+        format!(" {}{}", app.status, modified)
+    } else {
+        format!(" {}{}  ·  {}", app.status, modified, dot_path)
+    };
+
+    // Line 2: contextual hints
     let (hint, hint_color) = if app.confirm_quit {
         ("  Press q again to quit  (any other key to cancel)", Color::Red)
     } else if let Some(ref state) = app.edit {
@@ -521,45 +529,17 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         ("  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  s: save  q: quit", Color::DarkGray)
     };
 
-    let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, hint);
-    f.render_widget(
-        Paragraph::new(Span::styled(text, Style::default().fg(hint_color))),
-        area,
-    );
+    let lines = vec![
+        Line::from(Span::styled(line1, Style::default().fg(Color::White))),
+        Line::from(Span::styled(hint, Style::default().fg(hint_color))),
+    ];
+    f.render_widget(Paragraph::new(lines), area);
 }
 
-fn build_breadcrumb(root: &JNode, path: &[JKey]) -> String {
-    let mut parts: Vec<String> = Vec::new();
-    let mut current = root;
-
-    let root_label = match root {
-        JNode::Array { items, .. } => format!("Array({})", items.len()),
-        JNode::Object { .. } => "Object".to_string(),
-        JNode::Scalar(_) => "root".to_string(),
-    };
-    parts.push(root_label);
-
-    for key in path {
-        match (key, current) {
-            (JKey::Field(k), JNode::Object { entries, .. }) => {
-                if let Some(child) = entries.get(k) {
-                    let label = match child {
-                        JNode::Array { items, .. } => format!("{}({})", k, items.len()),
-                        _ => k.clone(),
-                    };
-                    parts.push(label);
-                    current = child;
-                } else { break; }
-            }
-            (JKey::Index(i), JNode::Array { items, .. }) => {
-                if let Some(child) = items.get(*i) {
-                    parts.push(format!("Item[{}]", i));
-                    current = child;
-                } else { break; }
-            }
-            _ => break,
-        }
-    }
-
-    parts.join(" › ")
+fn build_dot_path(path: &[JKey]) -> String {
+    path.iter().map(|k| match k {
+        JKey::Field(s) => s.clone(),
+        JKey::Index(i) => i.to_string(),
+    }).collect::<Vec<_>>().join(".")
 }
+

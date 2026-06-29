@@ -906,7 +906,7 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
     loop {
         let area = terminal.size()?;
         let h = area.height as usize;
-        let content_h = h.saturating_sub(1);
+        let content_h = h.saturating_sub(2);
 
         let table_inner_h = (content_h * 65 / 100).saturating_sub(3);
         if app.cursor < app.scroll {
