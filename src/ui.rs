@@ -25,7 +25,7 @@ pub fn render(f: &mut Frame, app: &App) {
     let (left_area, right_area) = if app.show_left {
         let h = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+            .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(content);
         (Some(h[0]), h[1])
     } else {
@@ -62,7 +62,7 @@ fn render_left(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::DarkGray))
-        .title(Span::styled(" Source ", Style::default().fg(Color::DarkGray)));
+        .title(Span::styled(" Source [[] ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -303,7 +303,7 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
-        .title(Span::styled(" Detail ", Style::default().fg(Color::DarkGray)));
+        .title(Span::styled(" Detail [] ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
