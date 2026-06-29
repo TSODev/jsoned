@@ -325,11 +325,15 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
             if let Some(ref state) = app.edit {
                 if let EditPhase::KeyEdit(ref ta) = state.phase {
                     let title = if matches!(state.mode, EditMode::Rename) {
-                        "Rename key"
+                        "Rename key".to_string()
+                    } else if matches!(state.mode, EditMode::Wrap) {
+                        let type_name = EDIT_TYPES.get(state.type_cursor).copied().unwrap_or("Object");
+                        format!("Wrap in {} — key name", type_name)
                     } else {
-                        "New field — key name"
+                        let type_name = EDIT_TYPES.get(state.type_cursor).copied().unwrap_or("field");
+                        format!("New {} — key name", type_name)
                     };
-                    render_key_editor(f, ta, title, inner);
+                    render_key_editor(f, ta, &title, inner);
                     return;
                 }
             }
