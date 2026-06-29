@@ -76,6 +76,7 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 
 | Key | Action |
 |-----|--------|
+| `r` | Rename the selected key (Object fields only) |
 | `a` | Add a child to the selected Object or Array |
 | `d` | Delete the selected node |
 | `D` | Duplicate the selected node (inserted immediately after) |
@@ -84,6 +85,16 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 | `y` | Copy the selected node to the clipboard |
 | `p` | Paste clipboard after the selected node |
 | `P` | Paste clipboard before the selected node |
+| `S` | Sort Object children alphabetically by key |
+| `E` | Expand all — recursively unfold the selected node and its descendants |
+| `C` | Collapse all — recursively fold the selected node and its descendants |
+
+## Undo and redo
+
+| Key | Action |
+|-----|--------|
+| `u` | Undo the last change (up to 50 levels, per session) |
+| `Ctrl+R` | Redo the last undone change |
 
 ## Saving
 
@@ -131,6 +142,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | Key | Action |
 |-----|--------|
 | `e` | Edit selected scalar (type dropdown + value editor) |
+| `r` | Rename selected key (Object fields only) |
 | `a` | Add child to selected container |
 | `d` | Delete selected node |
 | `D` | Duplicate selected node |
@@ -139,6 +151,11 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `y` | Copy node |
 | `p` | Paste after |
 | `P` | Paste before |
+| `S` | Sort Object children by key |
+| `E` | Expand all from selected |
+| `C` | Collapse all from selected |
+| `u` | Undo |
+| `Ctrl+R` | Redo |
 
 ### File
 

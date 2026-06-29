@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Save dialog popup when quitting with unsaved changes (save / quit without saving / cancel)
 - Panel toggles — `[` hides/shows Source panel, `]` hides/shows Detail panel
 - `Ctrl+C` as immediate quit (bypasses the double-`q` confirmation)
+- `r` — rename a key in an Object (Detail panel opens pre-filled with the current key; preserves position; rejects duplicate keys)
+- `u` / `Ctrl+R` — undo / redo with a 50-level history stack; every destructive operation is captured before it runs
+- `S` — sort Object children alphabetically by key
+- `E` / `C` — expand all / collapse all recursively from the selected node
 
 ### Changed
 - Selection highlight: teal-blue background (Indexed 25) — replaces the near-invisible dark grey

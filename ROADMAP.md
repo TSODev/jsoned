@@ -47,12 +47,12 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.4 — Structural editing
+## v0.4 — Structural editing ✅
 
-- [ ] `r` — rename a key (objects only)
-- [ ] `u` / `Ctrl+R` — undo / redo (history stack per session)
-- [ ] Sort children by key (`S`)
-- [ ] Expand all / collapse all (`E` / `C`)
+- [x] `r` — rename a key (objects only)
+- [x] `u` / `Ctrl+R` — undo / redo (50-level history stack per session)
+- [x] `S` — sort Object children alphabetically by key
+- [x] `E` / `C` — expand all / collapse all recursively from selected node
 - [ ] Wrap node in Object / Array
 
 ---
