@@ -7,8 +7,8 @@ use ratatui::{
 };
 
 use crate::{
-    app::App,
-    pretty::{annotate, Seg, SegColor},
+    app::{App, EditPhase, EditState, EDIT_TYPES},
+    pretty::{annotate, SegColor},
     tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
 };
 
@@ -22,7 +22,6 @@ pub fn render(f: &mut Frame, app: &App) {
 
     let content = main_chunks[0];
 
-    // Left panel optional
     let (left_area, right_area) = if app.show_left {
         let h = Layout::default()
             .direction(Direction::Horizontal)
@@ -33,7 +32,6 @@ pub fn render(f: &mut Frame, app: &App) {
         (None, content)
     };
 
-    // Preview panel optional
     let (table_area, preview_area) = if app.show_preview {
         let v = Layout::default()
             .direction(Direction::Vertical)
@@ -52,13 +50,9 @@ pub fn render(f: &mut Frame, app: &App) {
         render_preview(f, app, pa);
     }
     render_status(f, app, main_chunks[1]);
-
-    if app.editing.is_some() {
-        render_edit_popup(f, app, area);
-    }
 }
 
-// ── Left panel: annotated JSON source with highlight ────────────────────────
+// ── Left panel: annotated JSON source ───────────────────────────────────────
 
 fn render_left(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
@@ -93,7 +87,6 @@ fn render_left(f: &mut Frame, app: &App, area: Rect) {
                     Style::default().fg(seg_color(seg.color)).bg(content_bg),
                 ));
             }
-            // Fill remainder with highlight bg so the whole line is colored
             Line::from(spans).style(Style::default().bg(content_bg))
         })
         .collect();
@@ -103,21 +96,28 @@ fn render_left(f: &mut Frame, app: &App, area: Rect) {
 
 fn seg_color(c: SegColor) -> Color {
     match c {
-        SegColor::Key => Color::Cyan,
-        SegColor::Str => Color::Green,
-        SegColor::Num => Color::Yellow,
-        SegColor::Bool => Color::Magenta,
-        SegColor::Null => Color::DarkGray,
+        SegColor::Key   => Color::Cyan,
+        SegColor::Str   => Color::Green,
+        SegColor::Num   => Color::Yellow,
+        SegColor::Bool  => Color::Magenta,
+        SegColor::Null  => Color::DarkGray,
         SegColor::Punct => Color::White,
     }
 }
 
-// ── Right-top: table (Key / Type / Value) ───────────────────────────────────
+// ── Explorer: Key / Type / Value table + type dropdown ──────────────────────
 
 fn render_table(f: &mut Frame, app: &App, area: Rect) {
+    let editing = app.edit.is_some();
+    let in_type_select = matches!(
+        app.edit.as_ref().map(|s| &s.phase),
+        Some(EditPhase::TypeSelect)
+    );
+
+    let border_col = if editing { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(Style::default().fg(border_col))
         .title(Span::styled(" Explorer ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -127,7 +127,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
     let w = inner.width as usize;
     let key_w = (w * 42 / 100).max(15);
     let type_w = 15usize;
-    let val_w = w.saturating_sub(key_w + type_w + 4); // 4 = 2 gaps of 2 spaces
+    let val_w = w.saturating_sub(key_w + type_w + 4);
 
     // Header row
     let header_area = Rect::new(inner.x, inner.y, inner.width, 1);
@@ -156,6 +156,58 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
         .collect();
 
     f.render_widget(Paragraph::new(rows), content_area);
+
+    // Type-select dropdown: overlay over the Type column of the selected row
+    if in_type_select {
+        if let Some(ref state) = app.edit {
+            let row_y = content_area.y + (app.cursor - app.scroll) as u16;
+            let type_col_x = inner.x + key_w as u16 + 2;
+            let dropdown_w = type_w as u16 + 2;
+            let dropdown_h = 8u16; // 6 types + 2 borders
+
+            // Place below the selected row; flip above if insufficient space
+            let dropdown_y = if row_y + 1 + dropdown_h <= inner.y + inner.height {
+                row_y + 1
+            } else {
+                row_y.saturating_sub(dropdown_h)
+            };
+
+            let dropdown_area = Rect {
+                x: type_col_x,
+                y: dropdown_y,
+                width: dropdown_w.min(area.right().saturating_sub(type_col_x)),
+                height: dropdown_h.min(area.bottom().saturating_sub(dropdown_y)),
+            };
+
+            render_type_dropdown(f, state, dropdown_area);
+        }
+    }
+}
+
+fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
+    f.render_widget(Clear, area);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let lines: Vec<Line> = EDIT_TYPES.iter().enumerate()
+        .take(inner.height as usize)
+        .map(|(i, name)| {
+            let selected = i == state.type_cursor;
+            let (fg, bg) = if selected {
+                (Color::Black, Color::Yellow)
+            } else {
+                (Color::White, Color::Reset)
+            };
+            let text = format!("{:<width$}", name, width = inner.width as usize);
+            Line::from(Span::styled(text, Style::default().fg(fg).bg(bg)))
+        })
+        .collect();
+
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
@@ -175,17 +227,14 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
         (None, None) => "<root>".to_string(),
     };
 
-    // Key cell: indent + toggle + icon + space + name, truncated and padded to key_w
     let prefix = format!("{}{}{} ", "  ".repeat(row.depth), toggle, icon);
     let avail = key_w.saturating_sub(prefix.chars().count());
     let name_trunc: String = key_name.chars().take(avail).collect();
     let key_cell = format!("{:<width$}", format!("{}{}", prefix, name_trunc), width = key_w);
 
-    // Type cell
     let type_str = node_type_label(&row.node);
     let type_cell = format!("{:<width$}", type_str.chars().take(type_w).collect::<String>(), width = type_w);
 
-    // Value cell
     let (val_str, val_col) = node_value_display(&row.node);
     let val_trunc: String = val_str.chars().take(val_w).collect();
 
@@ -205,12 +254,12 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
 
 fn node_icon(node: &JNode) -> (&'static str, Color) {
     match node {
-        JNode::Object { .. }             => ("{}", Color::Yellow),
-        JNode::Array { .. }              => ("[]", Color::Cyan),
-        JNode::Scalar(JScalar::String(_)) => (" A", Color::Green),
-        JNode::Scalar(JScalar::Number(_)) => (" #", Color::Yellow),
-        JNode::Scalar(JScalar::Bool(_))   => (" ~", Color::Magenta),
-        JNode::Scalar(JScalar::Null)      => (" -", Color::DarkGray),
+        JNode::Object { .. }               => ("{}", Color::Yellow),
+        JNode::Array { .. }                => ("[]", Color::Cyan),
+        JNode::Scalar(JScalar::String(_))  => (" A", Color::Green),
+        JNode::Scalar(JScalar::Number(_))  => (" #", Color::Yellow),
+        JNode::Scalar(JScalar::Bool(_))    => (" ~", Color::Magenta),
+        JNode::Scalar(JScalar::Null)       => (" -", Color::DarkGray),
     }
 }
 
@@ -236,18 +285,76 @@ fn node_value_display(node: &JNode) -> (String, Color) {
     }
 }
 
-// ── Right-bottom: JSON preview of selected node ──────────────────────────────
+// ── Detail: JSON preview or value editor ────────────────────────────────────
 
 fn render_preview(f: &mut Frame, app: &App, area: Rect) {
+    let in_value_edit = matches!(
+        app.edit.as_ref().map(|s| &s.phase),
+        Some(EditPhase::ValueEdit(_))
+    );
+
+    let border_col = if in_value_edit { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::DarkGray))
+        .border_style(Style::default().fg(border_col))
         .title(Span::styled(" Detail ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
     if inner.height < 2 { return; }
 
+    if in_value_edit {
+        if let Some(ref state) = app.edit {
+            if let EditPhase::ValueEdit(ref ta) = state.phase {
+                render_value_editor(f, app, ta, state.type_cursor, inner);
+                return;
+            }
+        }
+    }
+
+    render_preview_normal(f, app, inner);
+}
+
+fn render_value_editor(
+    f: &mut Frame,
+    app: &App,
+    ta: &tui_textarea::TextArea<'static>,
+    type_cursor: usize,
+    inner: Rect,
+) {
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    let type_name = EDIT_TYPES.get(type_cursor).copied().unwrap_or("String");
+    let key_name = app.flat.get(app.cursor).map(|r| match (&r.key, r.index) {
+        (Some(k), _) => k.clone(),
+        (None, Some(i)) => format!("Item[{}]", i),
+        (None, None) => "<root>".to_string(),
+    }).unwrap_or_default();
+
+    let title = Line::from(vec![
+        Span::styled(
+            format!(" {} ", type_name),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(key_name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+    ]);
+    f.render_widget(Paragraph::new(title), parts[0]);
+
+    f.render_widget(ta, parts[1]);
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            " Enter: confirm  Esc: back to type",
+            Style::default().fg(Color::DarkGray),
+        )),
+        parts[2],
+    );
+}
+
+fn render_preview_normal(f: &mut Frame, app: &App, inner: Rect) {
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
 
     let title_key = app.flat.get(app.cursor).map(|r| match (&r.key, r.index) {
@@ -258,7 +365,6 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
 
     let node = get_node_at_path(&app.root, &cursor_path);
 
-    // Title bar (1 line)
     let title_area = Rect::new(inner.x, inner.y, inner.width, 1);
     let content_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
 
@@ -269,7 +375,6 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     ]);
     f.render_widget(Paragraph::new(title_line), title_area);
 
-    // Content: annotated JSON of the selected subtree
     if let Some(node) = node {
         let preview = annotate(node);
         let ln_w = preview.len().to_string().len().max(1);
@@ -298,17 +403,23 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-// ── Status bar / breadcrumb ──────────────────────────────────────────────────
+// ── Status bar ───────────────────────────────────────────────────────────────
 
 fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let modified = if app.modified { " [modified]" } else { "" };
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
     let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
 
-    let text = format!(
-        " {}{}  ·  {}    Space: fold/unfold  e: edit  s: save  [: left  ]: preview  q: quit ",
-        app.status, modified, breadcrumb
-    );
+    let edit_hint = if let Some(ref state) = app.edit {
+        match &state.phase {
+            EditPhase::TypeSelect    => "  ↑↓: type  Enter/Tab: confirm  Esc: cancel",
+            EditPhase::ValueEdit(_)  => "  Enter: confirm  Esc: back to type",
+        }
+    } else {
+        "  Space: fold  e: edit  s: save  [: left  ]: preview  q: quit"
+    };
+
+    let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, edit_hint);
     f.render_widget(
         Paragraph::new(Span::styled(text, Style::default().fg(Color::DarkGray))),
         area,
@@ -349,50 +460,4 @@ fn build_breadcrumb(root: &JNode, path: &[JKey]) -> String {
     }
 
     parts.join(" › ")
-}
-
-// ── Edit popup (from v0.2, unchanged logic) ──────────────────────────────────
-
-fn render_edit_popup(f: &mut Frame, app: &App, area: Rect) {
-    let Some((ref ta, ref path)) = app.editing else { return };
-
-    let path_str: String = path.iter().map(|k| match k {
-        JKey::Field(s) => s.clone(),
-        JKey::Index(i) => i.to_string(),
-    }).collect::<Vec<_>>().join(".");
-
-    let popup_width = area.width.saturating_sub(10).max(40);
-    let popup_height = 4u16;
-    let x = area.x + area.width.saturating_sub(popup_width) / 2;
-    let y = area.y + area.height.saturating_sub(popup_height) / 2;
-    let popup_area = Rect::new(x, y, popup_width, popup_height);
-
-    f.render_widget(Clear, popup_area);
-
-    let label = if path_str.is_empty() { "<root>".to_string() } else { path_str };
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow))
-        .title(Span::styled(
-            format!(" edit · {} ", label),
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-        ));
-
-    let inner = block.inner(popup_area);
-    f.render_widget(block, popup_area);
-
-    let inner_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(inner);
-
-    f.render_widget(ta, inner_chunks[0]);
-
-    f.render_widget(
-        Paragraph::new(Span::styled(
-            " Enter: confirm  Esc: cancel",
-            Style::default().fg(Color::DarkGray),
-        )),
-        inner_chunks[1],
-    );
 }

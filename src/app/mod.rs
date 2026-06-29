@@ -14,18 +14,33 @@ use crate::{
     tree::{flatten, set_node_at_path, JNode, JPath, JScalar},
 };
 
+/// Type names shown in the dropdown — index is the type code used throughout
+pub const EDIT_TYPES: [&str; 6] = ["Object", "Array", "String", "Number", "Boolean", "Null"];
+
+pub enum EditPhase {
+    TypeSelect,
+    ValueEdit(tui_textarea::TextArea<'static>),
+}
+
+pub struct EditState {
+    pub path: JPath,
+    pub original: JNode,
+    pub phase: EditPhase,
+    pub type_cursor: usize, // 0-5, index into EDIT_TYPES
+}
+
 pub struct App {
     pub root: JNode,
     pub flat: Vec<crate::tree::FlatRow>,
     pub annotated: Vec<AnnotatedLine>,
     pub cursor: usize,
-    pub scroll: usize,       // table scroll (right-top panel)
-    pub left_scroll: usize,  // left panel scroll (follows cursor)
+    pub scroll: usize,
+    pub left_scroll: usize,
     pub file: Option<PathBuf>,
     pub modified: bool,
     pub status: String,
     pub quit: bool,
-    pub editing: Option<(tui_textarea::TextArea<'static>, JPath)>,
+    pub edit: Option<EditState>,
     pub show_left: bool,
     pub show_preview: bool,
 }
@@ -49,7 +64,7 @@ impl App {
             root, flat, annotated,
             cursor: 0, scroll: 0, left_scroll: 0,
             file, modified: false, status, quit: false,
-            editing: None,
+            edit: None,
             show_left: true, show_preview: true,
         })
     }
@@ -69,8 +84,8 @@ impl App {
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
         use KeyCode::*;
 
-        if self.editing.is_some() {
-            self.handle_key_editing(key);
+        if self.edit.is_some() {
+            self.handle_key_edit(key);
             return;
         }
 
@@ -103,42 +118,129 @@ impl App {
         }
     }
 
-    fn handle_key_editing(&mut self, key: crossterm::event::KeyEvent) {
-        match key.code {
-            KeyCode::Esc => { self.editing = None; }
-            KeyCode::Enter => { self.commit_edit(); }
-            _ => {
-                if let Some((ref mut ta, _)) = self.editing {
-                    ta.input(key);
+    fn handle_key_edit(&mut self, key: crossterm::event::KeyEvent) {
+        use KeyCode::*;
+
+        let in_value_edit = matches!(
+            self.edit.as_ref().map(|s| &s.phase),
+            Some(EditPhase::ValueEdit(_))
+        );
+
+        if in_value_edit {
+            match key.code {
+                Esc => {
+                    // Step back to type selection without losing the path
+                    if let Some(s) = self.edit.as_mut() {
+                        s.phase = EditPhase::TypeSelect;
+                    }
                 }
+                Enter => self.commit_value(),
+                _ => {
+                    if let Some(s) = self.edit.as_mut() {
+                        if let EditPhase::ValueEdit(ta) = &mut s.phase {
+                            ta.input(key);
+                        }
+                    }
+                }
+            }
+        } else {
+            // TypeSelect phase
+            match key.code {
+                Esc => { self.edit = None; }
+                Up => {
+                    if let Some(s) = self.edit.as_mut() {
+                        s.type_cursor = s.type_cursor.saturating_sub(1);
+                    }
+                }
+                Down => {
+                    if let Some(s) = self.edit.as_mut() {
+                        s.type_cursor = (s.type_cursor + 1).min(5);
+                    }
+                }
+                Enter | Tab => self.confirm_type(),
+                _ => {}
             }
         }
     }
 
     fn start_edit(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
-        let JNode::Scalar(ref scalar) = row.node else { return };
 
-        let text = match scalar {
-            JScalar::Null => "null".to_string(),
-            JScalar::Bool(b) => b.to_string(),
-            JScalar::Number(n) => n.clone(),
-            JScalar::String(s) => s.clone(),
+        let type_cursor = match &row.node {
+            JNode::Object { .. }               => 0,
+            JNode::Array { .. }                => 1,
+            JNode::Scalar(JScalar::String(_))  => 2,
+            JNode::Scalar(JScalar::Number(_))  => 3,
+            JNode::Scalar(JScalar::Bool(_))    => 4,
+            JNode::Scalar(JScalar::Null)       => 5,
         };
 
-        let path = row.path.clone();
-        let mut ta = tui_textarea::TextArea::new(vec![text]);
-        ta.move_cursor(tui_textarea::CursorMove::End);
-        self.editing = Some((ta, path));
+        self.edit = Some(EditState {
+            path: row.path.clone(),
+            original: row.node.clone(),
+            phase: EditPhase::TypeSelect,
+            type_cursor,
+        });
     }
 
-    fn commit_edit(&mut self) {
-        let Some((ta, path)) = self.editing.take() else { return };
-        let text = ta.lines().first().cloned().unwrap_or_default();
-        let scalar = parse_scalar(&text);
-        set_node_at_path(&mut self.root, &path, JNode::Scalar(scalar));
-        self.refresh_flat();
-        self.modified = true;
+    fn confirm_type(&mut self) {
+        let Some(state) = self.edit.take() else { return };
+        let type_cursor = state.type_cursor;
+        let path = state.path.clone();
+        let original = state.original.clone();
+
+        match type_cursor {
+            0 => {
+                set_node_at_path(&mut self.root, &path, JNode::Object {
+                    entries: indexmap::IndexMap::new(), collapsed: false,
+                });
+                self.refresh_flat();
+                self.modified = true;
+            }
+            1 => {
+                set_node_at_path(&mut self.root, &path, JNode::Array {
+                    items: Vec::new(), collapsed: false,
+                });
+                self.refresh_flat();
+                self.modified = true;
+            }
+            5 => {
+                set_node_at_path(&mut self.root, &path, JNode::Scalar(JScalar::Null));
+                self.refresh_flat();
+                self.modified = true;
+            }
+            _ => {
+                // String (2), Number (3), Boolean (4): go to inline value editing
+                let initial = initial_text(type_cursor, &original);
+                let mut ta = tui_textarea::TextArea::new(vec![initial]);
+                ta.move_cursor(tui_textarea::CursorMove::End);
+                self.show_preview = true; // ensure Detail panel is visible for editing
+                self.edit = Some(EditState {
+                    path,
+                    original,
+                    phase: EditPhase::ValueEdit(ta),
+                    type_cursor,
+                });
+            }
+        }
+    }
+
+    fn commit_value(&mut self) {
+        let Some(state) = self.edit.take() else { return };
+        let EditState { path, type_cursor, phase, .. } = state;
+
+        if let EditPhase::ValueEdit(ta) = phase {
+            let text = ta.lines().first().cloned().unwrap_or_default();
+            let new_node = JNode::Scalar(match type_cursor {
+                2 => JScalar::String(text),
+                3 => JScalar::Number(text.trim().to_string()),
+                4 => JScalar::Bool(text.trim() == "true"),
+                _ => JScalar::Null,
+            });
+            set_node_at_path(&mut self.root, &path, new_node);
+            self.refresh_flat();
+            self.modified = true;
+        }
     }
 
     fn save_file(&mut self) {
@@ -169,19 +271,28 @@ impl App {
     }
 }
 
-fn parse_scalar(text: &str) -> JScalar {
-    let t = text.trim();
-    match t {
-        "null" => JScalar::Null,
-        "true" => JScalar::Bool(true),
-        "false" => JScalar::Bool(false),
-        _ => {
-            if serde_json::from_str::<serde_json::Number>(t).is_ok() {
-                JScalar::Number(t.to_string())
+/// Convert the original node's value to a sensible starting text for the given scalar type.
+fn initial_text(type_cursor: usize, original: &JNode) -> String {
+    let current = match original {
+        JNode::Scalar(JScalar::Null)       => String::new(),
+        JNode::Scalar(JScalar::Bool(b))    => b.to_string(),
+        JNode::Scalar(JScalar::Number(n))  => n.clone(),
+        JNode::Scalar(JScalar::String(s))  => s.clone(),
+        _ => String::new(),
+    };
+    match type_cursor {
+        2 => current, // String: keep as-is
+        3 => {
+            if serde_json::from_str::<serde_json::Number>(current.trim()).is_ok() {
+                current
             } else {
-                JScalar::String(text.to_string())
+                "0".to_string()
             }
         }
+        4 => {
+            if current == "true" || current == "false" { current } else { "false".to_string() }
+        }
+        _ => String::new(),
     }
 }
 
@@ -237,7 +348,7 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
             app.scroll = app.cursor.saturating_sub(table_inner_h) + 1;
         }
 
-        // Left panel scroll: follows cursor highlight
+        // Left panel scroll: auto-follow cursor highlight
         let left_inner_h = content_h.saturating_sub(2);
         if let Some(row) = app.flat.get(app.cursor) {
             let cp = &row.path;
