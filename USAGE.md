@@ -33,6 +33,13 @@ jsoned file.yaml       # YAML
 jsoned file.toml       # TOML
 jsoned data.csv        # CSV → JSON array of objects
 jsoned                 # start with an empty object
+
+# Stdin / stdout pipe mode
+cat file.json | jsoned          # read from stdin, TUI on stderr
+cat file.json | jsoned > out.json   # edit, s to write to stdout and exit
+
+# External editor integration
+TERAPI_JSON_EDITOR=jsoned terapi …  # jsoned receives body on stdin, returns on stdout
 ```
 
 ## Layout

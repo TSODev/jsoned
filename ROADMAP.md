@@ -97,4 +97,4 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 - **terapi** — `TERAPI_JSON_EDITOR=jsoned` opens a response body for editing or inspection
 - **$EDITOR fallback** — `jsoned` as a drop-in for `vi`/`nano` when editing JSON configs
-- **stdin / stdout** — `cat file.json | jsoned` and `:w` writes to stdout (pipe-friendly)
+- **stdin / stdout** ✅ — `cat file.json | jsoned` reads from stdin; `s` writes to stdout and exits (pipe-friendly, `TERAPI_JSON_EDITOR=jsoned`)

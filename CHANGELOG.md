@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- stdin / stdout pipe mode — `cat file.json | jsoned` reads from stdin (TUI renders on stderr, stdout stays free); `s` writes JSON to stdout and exits; enables `TERAPI_JSON_EDITOR=jsoned` integration
 - `W` — save-as dialog: format picker popup (JSON / YAML / TOML / CSV), then Detail panel opens for filename (pre-filled with stem + new extension); Enter saves, Esc returns to format picker
 - Conversion warnings: if saving as TOML and the document contains null values, a warning is shown in the status bar before attempting the write
 - 3-panel TUI layout: Source (annotated JSON with line numbers), Explorer (key/type/value table), Detail (node preview)

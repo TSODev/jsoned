@@ -51,6 +51,10 @@ jsoned file.json          # open in TUI
 jsoned file.yaml          # auto-detect format, open in TUI
 jsoned                    # start with an empty JSON object
 
+# Stdin / stdout pipe mode
+cat file.json | jsoned              # read from stdin, TUI on stderr
+cat file.json | jsoned > out.json   # edit then s to write to stdout and exit
+
 # Headless conversion — no TUI
 jsoned file.yaml --to json
 jsoned file.json --to yaml --output converted.yaml

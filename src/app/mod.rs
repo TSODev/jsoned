@@ -4,7 +4,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{backend::{Backend, CrosstermBackend}, Terminal};
 use std::path::PathBuf;
 
 use crate::{
@@ -83,11 +83,16 @@ pub struct App {
     pub pending_g: bool,            // true after first `g` press (waiting for gg)
     // Save-as
     pub save_as: Option<SaveAsState>,
+    pub stdout_mode: bool,
 }
 
 impl App {
-    pub fn new(file: Option<PathBuf>) -> Result<Self> {
-        let (root, status) = if let Some(ref path) = file {
+    pub fn new(file: Option<PathBuf>, stdin_content: Option<String>) -> Result<Self> {
+        let stdout_mode = stdin_content.is_some();
+        let (root, status) = if let Some(content) = stdin_content {
+            let value = parse_any(&content, "json")?;
+            (JNode::from_value(value), "stdin".to_string())
+        } else if let Some(ref path) = file {
             let src = std::fs::read_to_string(path)?;
             let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("json");
             let value = parse_any(&src, ext)?;
@@ -111,6 +116,7 @@ impl App {
             search_query: String::new(), search_active: false,
             search_matches: Vec::new(), search_match_cursor: 0, pending_g: false,
             save_as: None,
+            stdout_mode,
         })
     }
 
@@ -842,6 +848,21 @@ impl App {
     }
 
     fn save_file(&mut self) {
+        if self.stdout_mode {
+            let value = self.root.to_value();
+            match crate::convert::serialize_to(&value, "json") {
+                Ok(json) => {
+                    use std::io::Write;
+                    print!("{}", json);
+                    let _ = std::io::stdout().flush();
+                    self.modified = false;
+                    self.quit = true;
+                }
+                Err(e) => self.status = format!("serialize error: {e}"),
+            }
+            return;
+        }
+
         let path = match &self.file {
             Some(p) => p.clone(),
             None => {
@@ -1351,15 +1372,7 @@ fn toggle_node_collapse(node: &mut JNode, path: &[JKey]) {
     }
 }
 
-pub fn run(file: Option<PathBuf>) -> Result<()> {
-    enable_raw_mode()?;
-    let mut stdout = std::io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
-
-    let mut app = App::new(file)?;
-
+fn tui_loop<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()> {
     loop {
         let area = terminal.size()?;
         let h = area.height as usize;
@@ -1381,30 +1394,48 @@ pub fn run(file: Option<PathBuf>) -> Result<()> {
                 let l0 = last.unwrap_or(f0);
                 let block_h = l0 - f0 + 1;
                 if f0 < app.left_scroll {
-                    // Top of block scrolled out of view: bring it back
                     app.left_scroll = f0;
                 } else if block_h <= left_inner_h && l0 >= app.left_scroll + left_inner_h {
-                    // Block fits in view but bottom is below: scroll to reveal bottom
                     app.left_scroll = l0 + 1 - left_inner_h;
                 }
-                // If block is larger than the view (e.g. root, large container):
-                // keep current scroll — no need to chase the bottom
             }
         }
 
-        terminal.draw(|f| crate::ui::render(f, &app))?;
+        terminal.draw(|f| crate::ui::render(f, app))?;
 
         match next_event(250)? {
             AppEvent::Key(key) => app.handle_key(key),
             AppEvent::Tick => {}
         }
 
-        if app.quit {
-            break;
-        }
+        if app.quit { break; }
+    }
+    Ok(())
+}
+
+pub fn run(file: Option<PathBuf>, stdin_content: Option<String>) -> Result<()> {
+    let stdout_mode = stdin_content.is_some();
+    enable_raw_mode()?;
+    let mut app = App::new(file, stdin_content)?;
+
+    if stdout_mode {
+        // TUI on stderr — stdout stays free for the JSON output
+        let mut stderr = std::io::stderr();
+        execute!(stderr, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(std::io::stderr());
+        let mut terminal = Terminal::new(backend)?;
+        tui_loop(&mut terminal, &mut app)?;
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    } else {
+        let mut stdout = std::io::stdout();
+        execute!(stdout, EnterAlternateScreen)?;
+        let backend = CrosstermBackend::new(std::io::stdout());
+        let mut terminal = Terminal::new(backend)?;
+        tui_loop(&mut terminal, &mut app)?;
+        disable_raw_mode()?;
+        execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     }
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
 }
