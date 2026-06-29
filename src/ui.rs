@@ -50,6 +50,10 @@ pub fn render(f: &mut Frame, app: &App) {
         render_preview(f, app, pa);
     }
     render_status(f, app, main_chunks[1]);
+
+    if app.save_dialog {
+        render_save_dialog(f, area);
+    }
 }
 
 // ── Left panel: annotated JSON source ───────────────────────────────────────
@@ -444,6 +448,41 @@ fn render_preview_normal(f: &mut Frame, app: &App, inner: Rect) {
 
         f.render_widget(Paragraph::new(lines), content_area);
     }
+}
+
+// ── Save dialog ──────────────────────────────────────────────────────────────
+
+fn render_save_dialog(f: &mut Frame, area: Rect) {
+    let w = 46u16;
+    let h = 9u16;
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w, h);
+
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Span::styled(
+            " Unsaved changes ",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ));
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "  Save before quitting?",
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled("  [s]    Save and quit", Style::default().fg(Color::Green))),
+        Line::from(Span::styled("  [n]    Quit without saving", Style::default().fg(Color::Red))),
+        Line::from(Span::styled("  [Esc]  Cancel", Style::default().fg(Color::DarkGray))),
+    ];
+    f.render_widget(Paragraph::new(lines), inner);
 }
 
 // ── Status bar ───────────────────────────────────────────────────────────────

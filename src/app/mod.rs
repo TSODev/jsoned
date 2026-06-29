@@ -49,6 +49,7 @@ pub struct App {
     pub status: String,
     pub quit: bool,
     pub confirm_quit: bool,
+    pub save_dialog: bool,
     pub edit: Option<EditState>,
     pub clipboard: Option<JNode>,
     pub show_left: bool,
@@ -73,7 +74,7 @@ impl App {
         Ok(Self {
             root, flat, annotated,
             cursor: 0, scroll: 0, left_scroll: 0,
-            file, modified: false, status, quit: false, confirm_quit: false,
+            file, modified: false, status, quit: false, confirm_quit: false, save_dialog: false,
             edit: None, clipboard: None,
             show_left: true, show_preview: true,
         })
@@ -94,6 +95,11 @@ impl App {
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
         use KeyCode::*;
 
+        if self.save_dialog {
+            self.handle_save_dialog(key);
+            return;
+        }
+
         if self.edit.is_some() {
             self.handle_key_edit(key);
             return;
@@ -104,7 +110,10 @@ impl App {
                 self.quit = true;
             }
             (KeyModifiers::NONE, Char('q')) => {
-                if self.confirm_quit {
+                if self.modified {
+                    self.save_dialog = true;
+                    self.confirm_quit = false;
+                } else if self.confirm_quit {
                     self.quit = true;
                 } else {
                     self.confirm_quit = true;
@@ -145,6 +154,23 @@ impl App {
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.show_preview = !self.show_preview; }
             _ => { self.confirm_quit = false; }
+        }
+    }
+
+    fn handle_save_dialog(&mut self, key: crossterm::event::KeyEvent) {
+        use KeyCode::*;
+        match key.code {
+            Char('s') => {
+                self.save_file();
+                self.quit = true;
+            }
+            Char('n') | Char('q') => {
+                self.quit = true;
+            }
+            Esc => {
+                self.save_dialog = false;
+            }
+            _ => {}
         }
     }
 
