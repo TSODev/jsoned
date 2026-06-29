@@ -972,6 +972,36 @@ impl App {
             Some(n) => n.clone(),
             None => return,
         };
+
+        // Wrap-in-Object on a named field: rename-and-nest.
+        // new_key becomes the outer key; original_key becomes the inner key.
+        // e.g.  url: "v"  +  new_key="mainurl"  →  mainurl: { url: "v" }
+        if let (Some(new_key), Some(JKey::Field(original_key))) = (&key_opt, path.last()) {
+            let original_key = original_key.clone();
+            let new_key = new_key.clone();
+            let parent_path = path[..path.len() - 1].to_vec();
+
+            self.push_undo();
+            if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &parent_path) {
+                if let Some(pos) = entries.get_index_of(original_key.as_str()) {
+                    let mut inner = indexmap::IndexMap::new();
+                    inner.insert(original_key, original);
+                    let wrapper = JNode::Object { entries: inner, collapsed: false };
+                    entries.shift_remove_index(pos);
+                    entries.shift_insert(pos, new_key.clone(), wrapper);
+                }
+            }
+            self.refresh_flat();
+            self.modified = true;
+            let mut new_path = parent_path;
+            new_path.push(JKey::Field(new_key));
+            if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
+                self.cursor = pos;
+            }
+            return;
+        }
+
+        // Default: wrap the value in place (Array items, or wrap-in-Array for any node).
         self.push_undo();
         let wrapped = match key_opt {
             None => JNode::Array { items: vec![original], collapsed: false },
