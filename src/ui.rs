@@ -163,7 +163,7 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
 
     let toggle = match &row.node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
-            if *collapsed { "+ " } else { "- " }
+            if *collapsed { "> " } else { "v " }
         }
         _ => "  ",
     };
@@ -306,7 +306,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
 
     let text = format!(
-        " {}{}  ·  {}    e: edit  s: save  Space: fold  [: left  ]: preview  q: quit ",
+        " {}{}  ·  {}    Space: fold/unfold  e: edit  s: save  [: left  ]: preview  q: quit ",
         app.status, modified, breadcrumb
     );
     f.render_widget(
