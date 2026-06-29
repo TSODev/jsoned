@@ -214,7 +214,7 @@ fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w:
 
     let toggle = match &row.node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
-            if *collapsed { "> " } else { "v " }
+            if *collapsed { "▶ " } else { "▼ " }
         }
         _ => "  ",
     };
