@@ -1,0 +1,147 @@
+use indexmap::IndexMap;
+
+/// Core mutable tree — the editing model.
+/// Deliberately separate from serde_json::Value so we can track
+/// cursor position, collapsed state, and undo history independently.
+#[derive(Debug, Clone)]
+pub enum JNode {
+    Object { entries: IndexMap<String, JNode>, collapsed: bool },
+    Array  { items: Vec<JNode>, collapsed: bool },
+    Scalar(JScalar),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum JScalar {
+    Null,
+    Bool(bool),
+    Number(String),   // kept as raw string to preserve formatting (1.0 vs 1)
+    String(String),
+}
+
+/// A path segment into the tree
+#[derive(Debug, Clone, PartialEq)]
+pub enum JKey {
+    Field(String),
+    Index(usize),
+}
+
+/// Cursor = path from root to current node
+pub type JPath = Vec<JKey>;
+
+impl JNode {
+    pub fn from_value(v: serde_json::Value) -> Self {
+        match v {
+            serde_json::Value::Null => JNode::Scalar(JScalar::Null),
+            serde_json::Value::Bool(b) => JNode::Scalar(JScalar::Bool(b)),
+            serde_json::Value::Number(n) => JNode::Scalar(JScalar::Number(n.to_string())),
+            serde_json::Value::String(s) => JNode::Scalar(JScalar::String(s)),
+            serde_json::Value::Array(arr) => JNode::Array {
+                items: arr.into_iter().map(JNode::from_value).collect(),
+                collapsed: false,
+            },
+            serde_json::Value::Object(map) => JNode::Object {
+                entries: map.into_iter().map(|(k, v)| (k, JNode::from_value(v))).collect(),
+                collapsed: false,
+            },
+        }
+    }
+
+    pub fn to_value(&self) -> serde_json::Value {
+        match self {
+            JNode::Scalar(JScalar::Null) => serde_json::Value::Null,
+            JNode::Scalar(JScalar::Bool(b)) => serde_json::Value::Bool(*b),
+            JNode::Scalar(JScalar::Number(s)) => {
+                serde_json::from_str(s).unwrap_or(serde_json::Value::String(s.clone()))
+            }
+            JNode::Scalar(JScalar::String(s)) => serde_json::Value::String(s.clone()),
+            JNode::Array { items, .. } => {
+                serde_json::Value::Array(items.iter().map(|n| n.to_value()).collect())
+            }
+            JNode::Object { entries, .. } => {
+                let map: serde_json::Map<String, serde_json::Value> =
+                    entries.iter().map(|(k, v)| (k.clone(), v.to_value())).collect();
+                serde_json::Value::Object(map)
+            }
+        }
+    }
+
+    pub fn is_collapsed(&self) -> bool {
+        match self {
+            JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => *collapsed,
+            JNode::Scalar(_) => false,
+        }
+    }
+
+    pub fn type_label(&self) -> &'static str {
+        match self {
+            JNode::Object { .. } => "Object",
+            JNode::Array { .. } => "Array",
+            JNode::Scalar(JScalar::Null) => "null",
+            JNode::Scalar(JScalar::Bool(_)) => "bool",
+            JNode::Scalar(JScalar::Number(_)) => "number",
+            JNode::Scalar(JScalar::String(_)) => "string",
+        }
+    }
+
+    pub fn child_count(&self) -> usize {
+        match self {
+            JNode::Object { entries, .. } => entries.len(),
+            JNode::Array { items, .. } => items.len(),
+            JNode::Scalar(_) => 0,
+        }
+    }
+}
+
+/// Flat row produced by walking the tree for rendering
+#[derive(Debug, Clone)]
+pub struct FlatRow {
+    pub depth: usize,
+    pub key: Option<String>,     // None for array elements shown inline
+    pub index: Option<usize>,    // set for array elements
+    pub node: JNode,
+    pub path: JPath,
+    pub is_last_sibling: bool,
+}
+
+pub fn flatten(root: &JNode) -> Vec<FlatRow> {
+    let mut rows = Vec::new();
+    flatten_node(root, 0, None, None, &[], true, &mut rows);
+    rows
+}
+
+fn flatten_node(
+    node: &JNode,
+    depth: usize,
+    key: Option<String>,
+    index: Option<usize>,
+    path: &[JKey],
+    is_last: bool,
+    out: &mut Vec<FlatRow>,
+) {
+    let my_path = path.to_vec();
+    out.push(FlatRow { depth, key: key.clone(), index, node: node.clone(), path: my_path, is_last_sibling: is_last });
+
+    if node.is_collapsed() {
+        return;
+    }
+
+    match node {
+        JNode::Object { entries, .. } => {
+            let len = entries.len();
+            for (i, (k, child)) in entries.iter().enumerate() {
+                let mut child_path = path.to_vec();
+                child_path.push(JKey::Field(k.clone()));
+                flatten_node(child, depth + 1, Some(k.clone()), None, &child_path, i + 1 == len, out);
+            }
+        }
+        JNode::Array { items, .. } => {
+            let len = items.len();
+            for (i, child) in items.iter().enumerate() {
+                let mut child_path = path.to_vec();
+                child_path.push(JKey::Index(i));
+                flatten_node(child, depth + 1, None, Some(i), &child_path, i + 1 == len, out);
+            }
+        }
+        JNode::Scalar(_) => {}
+    }
+}
