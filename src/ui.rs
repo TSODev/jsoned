@@ -196,7 +196,9 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
+    let skip = if matches!(state.mode, EditMode::Edit) { 2 } else { 0 };
     let lines: Vec<Line> = EDIT_TYPES.iter().enumerate()
+        .skip(skip)
         .take(inner.height as usize)
         .map(|(i, name)| {
             let selected = i == state.type_cursor;

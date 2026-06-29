@@ -189,7 +189,8 @@ impl App {
                 Esc => { self.edit = None; }
                 Up => {
                     if let Some(s) = self.edit.as_mut() {
-                        s.type_cursor = s.type_cursor.saturating_sub(1);
+                        let min = if matches!(s.mode, EditMode::Edit) { 2 } else { 0 };
+                        s.type_cursor = s.type_cursor.saturating_sub(1).max(min);
                     }
                 }
                 Down => {
@@ -238,13 +239,17 @@ impl App {
     fn start_edit(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
 
+        if !matches!(&row.node, JNode::Scalar(_)) {
+            self.status = "use 'a' to add children · 'd' to delete · 'D' to duplicate".to_string();
+            return;
+        }
+
         let type_cursor = match &row.node {
-            JNode::Object { .. }               => 0,
-            JNode::Array { .. }                => 1,
             JNode::Scalar(JScalar::String(_))  => 2,
             JNode::Scalar(JScalar::Number(_))  => 3,
             JNode::Scalar(JScalar::Bool(_))    => 4,
             JNode::Scalar(JScalar::Null)       => 5,
+            _ => 2,
         };
 
         self.edit = Some(EditState {
@@ -295,22 +300,8 @@ impl App {
     }
 
     fn confirm_type_edit(&mut self, state: EditState) {
-        let original = state.original.as_ref().map(|n| n).cloned().unwrap_or(JNode::Scalar(JScalar::Null));
+        let original = state.original.as_ref().cloned().unwrap_or(JNode::Scalar(JScalar::Null));
         match state.type_cursor {
-            0 => {
-                set_node_at_path(&mut self.root, &state.path, JNode::Object {
-                    entries: indexmap::IndexMap::new(), collapsed: false,
-                });
-                self.refresh_flat();
-                self.modified = true;
-            }
-            1 => {
-                set_node_at_path(&mut self.root, &state.path, JNode::Array {
-                    items: Vec::new(), collapsed: false,
-                });
-                self.refresh_flat();
-                self.modified = true;
-            }
             5 => {
                 set_node_at_path(&mut self.root, &state.path, JNode::Scalar(JScalar::Null));
                 self.refresh_flat();
