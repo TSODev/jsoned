@@ -73,7 +73,7 @@ fn render_left(f: &mut Frame, app: &App, area: Rect) {
         .map(|(i, al)| {
             let ln = app.left_scroll + i + 1;
             let highlighted = al.path.starts_with(cursor_path.as_slice());
-            let content_bg = if highlighted { Color::Indexed(236) } else { Color::Reset };
+            let content_bg = if highlighted { Color::Indexed(25) } else { Color::Reset };
 
             let mut spans = vec![
                 Span::styled(
@@ -210,7 +210,7 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
 }
 
 fn render_row(row: &FlatRow, selected: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
-    let bg = if selected { Color::Indexed(236) } else { Color::Reset };
+    let bg = if selected { Color::Indexed(25) } else { Color::Reset };
 
     let toggle = match &row.node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
