@@ -30,12 +30,13 @@ pub enum EditPhase {
 }
 
 pub struct EditState {
-    pub path: JPath,            // Edit: path of node; AddChild: path of container
+    pub path: JPath,            // Edit: path of node; AddChild/AddSibling: path of parent container
     pub mode: EditMode,
     pub original: Option<JNode>, // Some for Edit (for potential cancel), None for AddChild
     pub phase: EditPhase,
     pub type_cursor: usize,     // 0-5, index into EDIT_TYPES
     pub pending_key: Option<String>, // key entered in KeyEdit, held until ValueEdit commits
+    pub insert_after: Option<usize>, // Some(idx) → insert sibling after position idx in parent
 }
 
 pub struct App {
@@ -285,36 +286,61 @@ impl App {
             phase: EditPhase::TypeSelect,
             type_cursor,
             pending_key: None,
+            insert_after: None,
         });
     }
 
     fn start_add_child(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
-        if !matches!(&row.node, JNode::Object { .. } | JNode::Array { .. }) {
-            self.status = "select a container to add a child".to_string();
-            return;
-        }
 
-        let path = row.path.clone();
-        let is_collapsed = row.node.is_collapsed();
-
-        // Auto-expand so the new child is visible immediately
-        if is_collapsed {
-            toggle_node_collapse(&mut self.root, &path);
-            self.refresh_flat();
-            if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
-                self.cursor = pos;
+        match &row.node {
+            JNode::Object { .. } | JNode::Array { .. } => {
+                let path = row.path.clone();
+                let is_collapsed = row.node.is_collapsed();
+                if is_collapsed {
+                    toggle_node_collapse(&mut self.root, &path);
+                    self.refresh_flat();
+                    if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
+                        self.cursor = pos;
+                    }
+                }
+                self.edit = Some(EditState {
+                    path,
+                    mode: EditMode::AddChild,
+                    original: None,
+                    phase: EditPhase::TypeSelect,
+                    type_cursor: 2,
+                    pending_key: None,
+                    insert_after: None,
+                });
+            }
+            JNode::Scalar(_) => {
+                let current_path = row.path.clone();
+                if current_path.is_empty() {
+                    self.status = "cannot add sibling to root".to_string();
+                    return;
+                }
+                let parent_path: JPath = current_path[..current_path.len() - 1].to_vec();
+                let after_idx = match current_path.last().unwrap() {
+                    JKey::Index(i) => *i,
+                    JKey::Field(k) => match get_node_at_path(&self.root, &parent_path) {
+                        Some(JNode::Object { entries, .. }) => {
+                            entries.get_index_of(k.as_str()).unwrap_or(0)
+                        }
+                        _ => 0,
+                    },
+                };
+                self.edit = Some(EditState {
+                    path: parent_path,
+                    mode: EditMode::AddChild,
+                    original: None,
+                    phase: EditPhase::TypeSelect,
+                    type_cursor: 2,
+                    pending_key: None,
+                    insert_after: Some(after_idx),
+                });
             }
         }
-
-        self.edit = Some(EditState {
-            path,
-            mode: EditMode::AddChild,
-            original: None,
-            phase: EditPhase::TypeSelect,
-            type_cursor: 2, // default to String
-            pending_key: None,
-        });
     }
 
     fn confirm_type(&mut self) {
@@ -359,10 +385,19 @@ impl App {
             // Array parent
             let path = state.path.clone();
             let tc = state.type_cursor;
+            let after = state.insert_after;
+            macro_rules! do_insert {
+                ($node:expr) => {
+                    match after {
+                        Some(idx) => self.insert_sibling(&path, None, $node, idx),
+                        None      => self.insert_child(&path, None, $node),
+                    }
+                };
+            }
             match tc {
-                0 => self.insert_child(&path, None, JNode::Object { entries: indexmap::IndexMap::new(), collapsed: false }),
-                1 => self.insert_child(&path, None, JNode::Array { items: Vec::new(), collapsed: false }),
-                5 => self.insert_child(&path, None, JNode::Scalar(JScalar::Null)),
+                0 => do_insert!(JNode::Object { entries: indexmap::IndexMap::new(), collapsed: false }),
+                1 => do_insert!(JNode::Array { items: Vec::new(), collapsed: false }),
+                5 => do_insert!(JNode::Scalar(JScalar::Null)),
                 _ => {
                     let initial = initial_text(tc, &JNode::Scalar(JScalar::Null));
                     let mut ta = tui_textarea::TextArea::new(vec![initial]);
@@ -398,10 +433,19 @@ impl App {
         let path = state.path.clone();
         let tc = state.type_cursor;
 
+        let after = state.insert_after;
+        macro_rules! do_insert {
+            ($node:expr) => {
+                match after {
+                    Some(idx) => self.insert_sibling(&path, Some(&key), $node, idx),
+                    None      => self.insert_child(&path, Some(&key), $node),
+                }
+            };
+        }
         match tc {
-            0 => self.insert_child(&path, Some(&key), JNode::Object { entries: indexmap::IndexMap::new(), collapsed: false }),
-            1 => self.insert_child(&path, Some(&key), JNode::Array { items: Vec::new(), collapsed: false }),
-            5 => self.insert_child(&path, Some(&key), JNode::Scalar(JScalar::Null)),
+            0 => do_insert!(JNode::Object { entries: indexmap::IndexMap::new(), collapsed: false }),
+            1 => do_insert!(JNode::Array { items: Vec::new(), collapsed: false }),
+            5 => do_insert!(JNode::Scalar(JScalar::Null)),
             _ => {
                 let initial = initial_text(tc, &JNode::Scalar(JScalar::Null));
                 let mut ta = tui_textarea::TextArea::new(vec![initial]);
@@ -414,6 +458,7 @@ impl App {
                     phase: EditPhase::ValueEdit(ta),
                     type_cursor: state.type_cursor,
                     pending_key: Some(key),
+                    insert_after: after,
                 });
             }
         }
@@ -441,7 +486,10 @@ impl App {
             EditMode::AddChild => {
                 let path = state.path.clone();
                 let key = state.pending_key.as_deref().map(|s| s.to_string());
-                self.insert_child(&path, key.as_deref(), new_node);
+                match state.insert_after {
+                    Some(idx) => self.insert_sibling(&path, key.as_deref(), new_node, idx),
+                    None      => self.insert_child(&path, key.as_deref(), new_node),
+                }
             }
             EditMode::Rename => {} // ValueEdit is not reachable from Rename
         }
@@ -665,6 +713,43 @@ impl App {
         }
     }
 
+    fn insert_sibling(&mut self, parent_path: &JPath, key: Option<&str>, new_node: JNode, after: usize) {
+        let mut new_path: Option<JPath> = None;
+        let insert_idx = after + 1;
+
+        self.push_undo();
+        if let Some(container) = get_node_at_path_mut(&mut self.root, parent_path) {
+            match container {
+                JNode::Array { items, .. } => {
+                    let idx = insert_idx.min(items.len());
+                    items.insert(idx, new_node);
+                    let mut p = parent_path.to_vec();
+                    p.push(JKey::Index(idx));
+                    new_path = Some(p);
+                }
+                JNode::Object { entries, .. } => {
+                    if let Some(k) = key {
+                        let idx = insert_idx.min(entries.len());
+                        entries.shift_insert(idx, k.to_string(), new_node);
+                        let mut p = parent_path.to_vec();
+                        p.push(JKey::Field(k.to_string()));
+                        new_path = Some(p);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        self.refresh_flat();
+        self.modified = true;
+
+        if let Some(np) = new_path {
+            if let Some(pos) = self.flat.iter().position(|r| r.path == np) {
+                self.cursor = pos;
+            }
+        }
+    }
+
     fn save_file(&mut self) {
         let path = match &self.file {
             Some(p) => p.clone(),
@@ -748,6 +833,7 @@ impl App {
             phase: EditPhase::KeyEdit(ta),
             type_cursor: 0,
             pending_key: None,
+            insert_after: None,
         });
     }
 

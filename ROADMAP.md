@@ -54,7 +54,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 - [x] `S` — sort Object children alphabetically by key
 - [x] `E` / `C` — expand all / collapse all recursively from selected node
 - [ ] Wrap node in Object / Array
-- [ ] `a` on a scalar — add sibling after current node (currently only works on containers)
+- [x] `a` on a scalar — add sibling after current node (Object: key + value; Array: value only)
 
 ---
 
