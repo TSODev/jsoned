@@ -3,22 +3,22 @@
 Keyboard-driven TUI for viewing and editing JSON files — with format conversion between JSON, YAML, TOML, and CSV.
 
 ```
-┌─ Source [[] ──────┬─── Explorer ──────────────────────────────────────────────┐
-│  1  {             │ Key              Type        Value                         │
-│  2    "name":..   │ ▼ {}             Object                                   │
-│  3    "age": 32,  │   "name"         string      Alice                        │
-│  4    "address":{ │ ▶ "age"          number      32                           │
-│  5      "street.. │ ▼ "address"      Object                                   │
-│  6      "city":.. │     "street"     string      12 rue de la Paix            │
-│                   │     "city"       string      Paris                        │
-│                   ├─── Detail [] ─────────────────────────────────────────────┤
-│                   │  {} address                                                │
-│                   │  {                                                         │
-│                   │    "street": "12 rue de la Paix",                         │
-│                   │    "city": "Paris"                                         │
-└───────────────────┴───────────────────────────────────────────────────────────┘
+┌─ Source [[] ──────┬─── Explorer [^E] ──────────────────────────────────────────┐
+│  1  {             │ Key              Type        Value                          │
+│  2    "name":..   │ ▼ {}             Object                                    │
+│  3    "age": 32,  │   " name         String      Alice                         │
+│  4    "address":{ │   № age          Number      32                            │
+│  5      "street.. │ ▼ {} address     Object                                    │
+│  6      "city":.. │     " street     String      12 rue de la Paix             │
+│                   │     " city       String      Paris                         │
+│                   ├─── Detail [] ──────────────────────────────────────────────┤
+│                   │  {} address                                                 │
+│                   │  {                                                          │
+│                   │    "street": "12 rue de la Paix",                          │
+│                   │    "city": "Paris"                                          │
+└───────────────────┴────────────────────────────────────────────────────────────┘
  user.json  ·  address.city
- e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  s: save  q: quit
+ e: edit  r: rename  a: add  w: wrap  d: del  D: dup  /: search  s: save  q: quit
 ```
 
 ## Features
@@ -26,9 +26,11 @@ Keyboard-driven TUI for viewing and editing JSON files — with format conversio
 - **3-panel layout** — Source (annotated JSON), Explorer (key/type/value table), Detail (node preview)
 - **Edit** scalar values inline with type conversion (String ↔ Number ↔ Boolean ↔ Null)
 - **Rename** keys, **add** / **delete** / **duplicate** / **move** nodes
+- **Wrap** any node in an Array or Object with a single keypress
 - **Undo / redo** — 50-level history, captured before every change
 - **Copy / paste** nodes within the document
 - **Sort** Object children alphabetically; **expand** or **collapse** entire subtrees
+- **Search** — `/` to search keys and values, `n`/`N` to navigate matches
 - **Convert** between JSON, YAML, TOML, and CSV — interactively or headless
 - Dot-path indicator (`address.city`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
@@ -62,21 +64,21 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `↑` / `↓` or `k` / `j` | Navigate |
 | `PgUp` / `PgDn` | Jump 20 rows |
+| `gg` / `G` | Jump to first / last row |
 | `Enter` / `Space` | Fold / unfold |
 | `e` | Edit selected scalar |
 | `r` | Rename selected key |
-| `a` | Add child to container |
+| `a` | Add child (container) or sibling (scalar) |
+| `w` | Wrap node in Array or Object |
 | `d` | Delete node |
 | `D` | Duplicate node |
 | `K` / `J` | Move node up / down |
 | `y` / `p` / `P` | Copy / paste after / paste before |
 | `S` | Sort Object children by key |
 | `E` / `C` | Expand all / collapse all from selected |
-| `w` | Wrap node in Array or Object |
 | `u` / `Ctrl+R` | Undo / redo |
 | `/` | Search by key or value |
 | `n` / `N` | Next / previous match |
-| `gg` / `G` | Jump to first / last row |
 | `s` | Save |
 | `[` / `]` | Toggle Source / Detail panel |
 | `Ctrl+E` | Toggle Explorer fullscreen |

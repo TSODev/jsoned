@@ -9,6 +9,9 @@
 - [Folding and unfolding](#folding-and-unfolding)
 - [Editing values](#editing-values)
 - [Editing structure](#editing-structure)
+- [Search](#search)
+- [Jump navigation](#jump-navigation)
+- [Undo and redo](#undo-and-redo)
 - [Saving](#saving)
 - [Format conversion](#format-conversion)
   - [Headless](#headless)
@@ -38,17 +41,18 @@ jsoned uses a 3-panel layout:
 
 ```
 ┌─────────────┬──────────────────────────┐
-│             │  Explorer (key/type/val) │
+│             │  Explorer [^E]           │
 │   Source    ├──────────────────────────┤
 │  (JSON +    │                          │
 │ line nums)  │   Detail (node preview)  │
 │             │                          │
 └─────────────┴──────────────────────────┘
-│ status bar · breadcrumb · hints        │
+│ filename · dot.path                    │
+│ contextual hints                       │
 ```
 
 - **Source [[]** — annotated JSON with line numbers; highlights the selected node. Toggle with `[`.
-- **Explorer** — key / type / value table; main interaction surface.
+- **Explorer [^E]** — key / type / value table; main interaction surface. Toggle fullscreen with `Ctrl+E`.
 - **Detail []** — JSON preview of the selected node; becomes the value editor during `e`. Toggle with `]`.
 
 The status bar shows two lines:
@@ -80,7 +84,7 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 | Key | Action |
 |-----|--------|
 | `r` | Rename the selected key (Object fields only) |
-| `a` | Add a child to the selected Object or Array |
+| `a` | Add a child to a container — or a sibling after the current node when on a scalar |
 | `d` | Delete the selected node |
 | `D` | Duplicate the selected node (inserted immediately after) |
 | `K` | Move the selected node up within its parent |
@@ -168,7 +172,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `e` | Edit selected scalar (type dropdown + value editor) |
 | `r` | Rename selected key (Object fields only) |
-| `a` | Add child to selected container |
+| `a` | Add child (container) or sibling after current node (scalar) |
 | `d` | Delete selected node |
 | `D` | Duplicate selected node |
 | `K` | Move node up |
@@ -176,6 +180,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `y` | Copy node |
 | `p` | Paste after |
 | `P` | Paste before |
+| `w` | Wrap node in Array or Object |
 | `S` | Sort Object children by key |
 | `E` | Expand all from selected |
 | `C` | Collapse all from selected |
