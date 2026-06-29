@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Explorer Key column narrowed (42 % → 33 % of panel width) — Type and Value columns shift left by ~10 chars
 
 ### Fixed
+- Stdin pipe mode crash ("Failed to initialize input reader") on macOS — crossterm's default `mio` backend fails to register `/dev/tty` with kqueue when stdin is a pipe; fix: `crossterm = { version = "0.28", features = ["use-dev-tty"] }` which uses `filedescriptor` + `poll()` directly
 - Source panel scroll stabilized at startup — anchors on the selected node without jumping on large documents
 - `Esc` in normal mode now clears transient status messages and resets to filename
 
