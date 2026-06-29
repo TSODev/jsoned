@@ -129,7 +129,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
     if inner.height < 2 { return; }
 
     let w = inner.width as usize;
-    let key_w = (w * 42 / 100).max(15);
+    let key_w = (w * 33 / 100).max(15);
     let type_w = 15usize;
     let val_w = w.saturating_sub(key_w + type_w + 4);
 

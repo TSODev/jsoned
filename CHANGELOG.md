@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Source/Explorer panel ratio changed to 30/70 (was 45/55)
 - Panel titles display their toggle key: Source `[[]`, Explorer `[^E]`, Detail `[]`
 - Explorer type icons: `{}` Object · `[]` Array · `"` String · `№` Number · `◆` Boolean · `∅` Null — each icon rendered in its type colour (yellow / cyan / green / yellow / magenta / dark-grey)
+- Explorer Key column narrowed (42 % → 33 % of panel width) — Type and Value columns shift left by ~10 chars
 
 ### Fixed
 - Source panel scroll stabilized at startup — anchors on the selected node without jumping on large documents
