@@ -122,7 +122,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
-        .title(Span::styled(" Explorer [`] ", Style::default().fg(Color::DarkGray)));
+        .title(Span::styled(" Explorer [^E]", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 

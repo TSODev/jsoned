@@ -204,7 +204,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `[` | Toggle Source panel |
 | `]` | Toggle Detail panel |
-| `` ` `` | Toggle Explorer fullscreen (hides Source + Detail; press again to restore) |
+| `Ctrl+E` | Toggle Explorer fullscreen (hides Source + Detail; press again to restore) |
 | `Esc` | Clear search / clear status / cancel confirm-quit |
 
 ### Quit

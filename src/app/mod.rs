@@ -183,7 +183,7 @@ impl App {
             (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
-            (KeyModifiers::NONE, Char('`')) => { self.confirm_quit = false; self.pending_g = false; self.toggle_explorer_fullscreen(); }
+            (KeyModifiers::CONTROL, Char('e')) => { self.confirm_quit = false; self.pending_g = false; self.toggle_explorer_fullscreen(); }
             (KeyModifiers::NONE, Char('/')) => {
                 self.confirm_quit = false; self.pending_g = false;
                 self.search_active = true;

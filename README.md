@@ -79,7 +79,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `gg` / `G` | Jump to first / last row |
 | `s` | Save |
 | `[` / `]` | Toggle Source / Detail panel |
-| `` ` `` | Toggle Explorer fullscreen |
+| `Ctrl+E` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
 
