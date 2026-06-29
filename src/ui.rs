@@ -122,7 +122,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
-        .title(Span::styled(" Explorer ", Style::default().fg(Color::DarkGray)));
+        .title(Span::styled(" Explorer [`] ", Style::default().fg(Color::DarkGray)));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -574,7 +574,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         ))
     } else {
         Line::from(Span::styled(
-            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  `: fullscreen  s: save  q: quit",
+            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  s: save  q: quit",
             Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
         ))
     };
