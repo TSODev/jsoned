@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, EditPhase, EditState, EDIT_TYPES},
+    app::{App, EditMode, EditPhase, EditState, EDIT_TYPES},
     pretty::{annotate, SegColor},
     tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
 };
@@ -129,7 +129,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
     let type_w = 15usize;
     let val_w = w.saturating_sub(key_w + type_w + 4);
 
-    // Header row
+    // Header
     let header_area = Rect::new(inner.x, inner.y, inner.width, 1);
     let content_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
 
@@ -157,7 +157,7 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
 
     f.render_widget(Paragraph::new(rows), content_area);
 
-    // Type-select dropdown: overlay over the Type column of the selected row
+    // Type-select dropdown anchored below the selected row's Type cell
     if in_type_select {
         if let Some(ref state) = app.edit {
             let row_y = content_area.y + (app.cursor - app.scroll) as u16;
@@ -165,7 +165,6 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
             let dropdown_w = type_w as u16 + 2;
             let dropdown_h = 8u16; // 6 types + 2 borders
 
-            // Place below the selected row; flip above if insufficient space
             let dropdown_y = if row_y + 1 + dropdown_h <= inner.y + inner.height {
                 row_y + 1
             } else {
@@ -285,15 +284,16 @@ fn node_value_display(node: &JNode) -> (String, Color) {
     }
 }
 
-// ── Detail: JSON preview or value editor ────────────────────────────────────
+// ── Detail: JSON preview · key editor · value editor ────────────────────────
 
 fn render_preview(f: &mut Frame, app: &App, area: Rect) {
-    let in_value_edit = matches!(
-        app.edit.as_ref().map(|s| &s.phase),
-        Some(EditPhase::ValueEdit(_))
-    );
+    let phase_kind = match app.edit.as_ref().map(|s| &s.phase) {
+        Some(EditPhase::KeyEdit(_))  => 1,
+        Some(EditPhase::ValueEdit(_)) => 2,
+        _ => 0,
+    };
 
-    let border_col = if in_value_edit { Color::Yellow } else { Color::DarkGray };
+    let border_col = if phase_kind > 0 { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
@@ -303,16 +303,52 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
 
     if inner.height < 2 { return; }
 
-    if in_value_edit {
-        if let Some(ref state) = app.edit {
-            if let EditPhase::ValueEdit(ref ta) = state.phase {
-                render_value_editor(f, app, ta, state.type_cursor, inner);
-                return;
+    match phase_kind {
+        1 => {
+            if let Some(ref state) = app.edit {
+                if let EditPhase::KeyEdit(ref ta) = state.phase {
+                    render_key_editor(f, ta, inner);
+                    return;
+                }
             }
         }
+        2 => {
+            if let Some(ref state) = app.edit {
+                if let EditPhase::ValueEdit(ref ta) = state.phase {
+                    render_value_editor(f, app, ta, state.type_cursor, &state.mode, inner);
+                    return;
+                }
+            }
+        }
+        _ => {}
     }
 
     render_preview_normal(f, app, inner);
+}
+
+fn render_key_editor(f: &mut Frame, ta: &tui_textarea::TextArea<'static>, inner: Rect) {
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            " New field — key name",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ))),
+        parts[0],
+    );
+
+    f.render_widget(ta, parts[1]);
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            " Enter: confirm  Esc: back to type",
+            Style::default().fg(Color::DarkGray),
+        )),
+        parts[2],
+    );
 }
 
 fn render_value_editor(
@@ -320,6 +356,7 @@ fn render_value_editor(
     app: &App,
     ta: &tui_textarea::TextArea<'static>,
     type_cursor: usize,
+    mode: &EditMode,
     inner: Rect,
 ) {
     let parts = Layout::default()
@@ -328,23 +365,29 @@ fn render_value_editor(
         .split(inner);
 
     let type_name = EDIT_TYPES.get(type_cursor).copied().unwrap_or("String");
-    let key_name = app.flat.get(app.cursor).map(|r| match (&r.key, r.index) {
-        (Some(k), _) => k.clone(),
-        (None, Some(i)) => format!("Item[{}]", i),
-        (None, None) => "<root>".to_string(),
-    }).unwrap_or_default();
 
-    let title = Line::from(vec![
-        Span::styled(
-            format!(" {} ", type_name),
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(key_name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-    ]);
+    let title = match mode {
+        EditMode::Edit => {
+            let key_name = app.flat.get(app.cursor).map(|r| match (&r.key, r.index) {
+                (Some(k), _) => k.clone(),
+                (None, Some(i)) => format!("Item[{}]", i),
+                (None, None) => "<root>".to_string(),
+            }).unwrap_or_default();
+            Line::from(vec![
+                Span::styled(format!(" {} ", type_name), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(key_name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            ])
+        }
+        EditMode::AddChild => {
+            Line::from(Span::styled(
+                format!(" Add {} — value", type_name),
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            ))
+        }
+    };
+
     f.render_widget(Paragraph::new(title), parts[0]);
-
     f.render_widget(ta, parts[1]);
-
     f.render_widget(
         Paragraph::new(Span::styled(
             " Enter: confirm  Esc: back to type",
@@ -410,16 +453,22 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
     let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
 
-    let edit_hint = if let Some(ref state) = app.edit {
-        match &state.phase {
-            EditPhase::TypeSelect    => "  ↑↓: type  Enter/Tab: confirm  Esc: cancel",
-            EditPhase::ValueEdit(_)  => "  Enter: confirm  Esc: back to type",
+    let hint = if let Some(ref state) = app.edit {
+        match (&state.phase, &state.mode) {
+            (EditPhase::TypeSelect, EditMode::AddChild) =>
+                "  ↑↓: type  Enter: confirm  Esc: cancel add",
+            (EditPhase::TypeSelect, EditMode::Edit) =>
+                "  ↑↓: type  Enter: confirm  Esc: cancel",
+            (EditPhase::KeyEdit(_), _) =>
+                "  key name  Enter: confirm  Esc: back to type",
+            (EditPhase::ValueEdit(_), _) =>
+                "  Enter: confirm  Esc: back to type",
         }
     } else {
-        "  Space: fold  e: edit  s: save  [: left  ]: preview  q: quit"
+        "  e: edit  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  s: save  q: quit"
     };
 
-    let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, edit_hint);
+    let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, hint);
     f.render_widget(
         Paragraph::new(Span::styled(text, Style::default().fg(Color::DarkGray))),
         area,

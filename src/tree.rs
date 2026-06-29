@@ -126,6 +126,30 @@ pub fn get_node_at_path<'a>(root: &'a JNode, path: &[JKey]) -> Option<&'a JNode>
     }
 }
 
+pub fn get_node_at_path_mut<'a>(root: &'a mut JNode, path: &[JKey]) -> Option<&'a mut JNode> {
+    if path.is_empty() {
+        return Some(root);
+    }
+    let (first, rest) = path.split_first()?;
+    match root {
+        JNode::Object { entries, .. } => {
+            if let JKey::Field(k) = first {
+                entries.get_mut(k.as_str()).and_then(|c| get_node_at_path_mut(c, rest))
+            } else {
+                None
+            }
+        }
+        JNode::Array { items, .. } => {
+            if let JKey::Index(i) = first {
+                items.get_mut(*i).and_then(|c| get_node_at_path_mut(c, rest))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 pub fn set_node_at_path(root: &mut JNode, path: &[JKey], new_node: JNode) {
     if path.is_empty() {
         *root = new_node;
