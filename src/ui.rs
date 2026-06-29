@@ -453,8 +453,10 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
     let breadcrumb = build_breadcrumb(&app.root, &cursor_path);
 
-    let hint = if let Some(ref state) = app.edit {
-        match (&state.phase, &state.mode) {
+    let (hint, hint_color) = if app.confirm_quit {
+        ("  Press q again to quit  (any other key to cancel)", Color::Red)
+    } else if let Some(ref state) = app.edit {
+        let h = match (&state.phase, &state.mode) {
             (EditPhase::TypeSelect, EditMode::AddChild) =>
                 "  ↑↓: type  Enter: confirm  Esc: cancel add",
             (EditPhase::TypeSelect, EditMode::Edit) =>
@@ -463,14 +465,15 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
                 "  key name  Enter: confirm  Esc: back to type",
             (EditPhase::ValueEdit(_), _) =>
                 "  Enter: confirm  Esc: back to type",
-        }
+        };
+        (h, Color::DarkGray)
     } else {
-        "  e: edit  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  s: save  q: quit"
+        ("  e: edit  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  s: save  q: quit", Color::DarkGray)
     };
 
     let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, hint);
     f.render_widget(
-        Paragraph::new(Span::styled(text, Style::default().fg(Color::DarkGray))),
+        Paragraph::new(Span::styled(text, Style::default().fg(hint_color))),
         area,
     );
 }

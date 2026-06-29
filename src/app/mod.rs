@@ -48,6 +48,7 @@ pub struct App {
     pub modified: bool,
     pub status: String,
     pub quit: bool,
+    pub confirm_quit: bool,
     pub edit: Option<EditState>,
     pub clipboard: Option<JNode>,
     pub show_left: bool,
@@ -72,7 +73,7 @@ impl App {
         Ok(Self {
             root, flat, annotated,
             cursor: 0, scroll: 0, left_scroll: 0,
-            file, modified: false, status, quit: false,
+            file, modified: false, status, quit: false, confirm_quit: false,
             edit: None, clipboard: None,
             show_left: true, show_preview: true,
         })
@@ -99,39 +100,51 @@ impl App {
         }
 
         match (key.modifiers, key.code) {
-            (KeyModifiers::NONE, Char('q')) | (KeyModifiers::CONTROL, Char('c')) => {
+            (KeyModifiers::CONTROL, Char('c')) => {
                 self.quit = true;
             }
+            (KeyModifiers::NONE, Char('q')) => {
+                if self.confirm_quit {
+                    self.quit = true;
+                } else {
+                    self.confirm_quit = true;
+                }
+            }
             (KeyModifiers::NONE, Down) | (KeyModifiers::NONE, Char('j')) => {
+                self.confirm_quit = false;
                 if self.cursor + 1 < self.flat.len() {
                     self.cursor += 1;
                 }
             }
             (KeyModifiers::NONE, Up) | (KeyModifiers::NONE, Char('k')) => {
+                self.confirm_quit = false;
                 self.cursor = self.cursor.saturating_sub(1);
             }
             (KeyModifiers::NONE, PageDown) => {
+                self.confirm_quit = false;
                 self.cursor = (self.cursor + 20).min(self.flat.len().saturating_sub(1));
             }
             (KeyModifiers::NONE, PageUp) => {
+                self.confirm_quit = false;
                 self.cursor = self.cursor.saturating_sub(20);
             }
             (KeyModifiers::NONE, Enter) | (KeyModifiers::NONE, Char(' ')) => {
+                self.confirm_quit = false;
                 self.toggle_collapse();
             }
-            (KeyModifiers::NONE, Char('e')) => self.start_edit(),
-            (KeyModifiers::NONE, Char('a')) => self.start_add_child(),
-            (KeyModifiers::NONE, Char('d')) => self.delete_node(),
-            (KeyModifiers::SHIFT, Char('D')) | (KeyModifiers::NONE, Char('D')) => self.duplicate_node(),
-            (KeyModifiers::NONE, Char('y')) => self.copy_node(),
-            (KeyModifiers::NONE, Char('p')) => self.paste_node(true),
-            (KeyModifiers::SHIFT, Char('P')) | (KeyModifiers::NONE, Char('P')) => self.paste_node(false),
-            (KeyModifiers::SHIFT, Char('K')) | (KeyModifiers::NONE, Char('K')) => self.move_node(true),
-            (KeyModifiers::SHIFT, Char('J')) | (KeyModifiers::NONE, Char('J')) => self.move_node(false),
-            (KeyModifiers::NONE, Char('s')) => self.save_file(),
-            (KeyModifiers::NONE, Char('[')) => self.show_left = !self.show_left,
-            (KeyModifiers::NONE, Char(']')) => self.show_preview = !self.show_preview,
-            _ => {}
+            (KeyModifiers::NONE, Char('e')) => { self.confirm_quit = false; self.start_edit(); }
+            (KeyModifiers::NONE, Char('a')) => { self.confirm_quit = false; self.start_add_child(); }
+            (KeyModifiers::NONE, Char('d')) => { self.confirm_quit = false; self.delete_node(); }
+            (KeyModifiers::SHIFT, Char('D')) | (KeyModifiers::NONE, Char('D')) => { self.confirm_quit = false; self.duplicate_node(); }
+            (KeyModifiers::NONE, Char('y')) => { self.confirm_quit = false; self.copy_node(); }
+            (KeyModifiers::NONE, Char('p')) => { self.confirm_quit = false; self.paste_node(true); }
+            (KeyModifiers::SHIFT, Char('P')) | (KeyModifiers::NONE, Char('P')) => { self.confirm_quit = false; self.paste_node(false); }
+            (KeyModifiers::SHIFT, Char('K')) | (KeyModifiers::NONE, Char('K')) => { self.confirm_quit = false; self.move_node(true); }
+            (KeyModifiers::SHIFT, Char('J')) | (KeyModifiers::NONE, Char('J')) => { self.confirm_quit = false; self.move_node(false); }
+            (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
+            (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.show_left = !self.show_left; }
+            (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.show_preview = !self.show_preview; }
+            _ => { self.confirm_quit = false; }
         }
     }
 
