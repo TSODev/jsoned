@@ -506,17 +506,19 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         format!(" {}{}  ·  {}", app.status, modified, dot_path)
     };
 
-    // Line 2: contextual hints
-    let (hint, hint_color) = if app.confirm_quit {
-        ("  Press q again to quit  (any other key to cancel)", Color::Red)
+    // Line 2: contextual hints — background Indexed(236), text/bg vary by context
+    let hint_line = if app.confirm_quit {
+        Line::from(Span::styled(
+            "  Press q again to quit  (any other key to cancel)",
+            Style::default().fg(Color::White).bg(Color::Indexed(52)),
+        ))
     } else if let Some(ref state) = app.edit {
         let h = match (&state.phase, &state.mode) {
             (EditPhase::TypeSelect, EditMode::AddChild) =>
                 "  ↑↓: type  Enter: confirm  Esc: cancel",
             (EditPhase::TypeSelect, EditMode::Edit) =>
                 "  ↑↓: type  Enter: confirm  Esc: cancel",
-            (EditPhase::TypeSelect, EditMode::Rename) =>
-                "",
+            (EditPhase::TypeSelect, EditMode::Rename) => "",
             (EditPhase::KeyEdit(_), EditMode::Rename) =>
                 "  Enter: rename  Esc: cancel",
             (EditPhase::KeyEdit(_), _) =>
@@ -524,14 +526,20 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
             (EditPhase::ValueEdit(_), _) =>
                 "  Enter: confirm  Esc: back to type",
         };
-        (h, Color::DarkGray)
+        Line::from(Span::styled(
+            h,
+            Style::default().fg(Color::Yellow).bg(Color::Indexed(236)),
+        ))
     } else {
-        ("  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  f: fullscreen  s: save  q: quit", Color::DarkGray)
+        Line::from(Span::styled(
+            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  f: fullscreen  s: save  q: quit",
+            Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
+        ))
     };
 
     let lines = vec![
         Line::from(Span::styled(line1, Style::default().fg(Color::White))),
-        Line::from(Span::styled(hint, Style::default().fg(hint_color))),
+        hint_line,
     ];
     f.render_widget(Paragraph::new(lines), area);
 }
