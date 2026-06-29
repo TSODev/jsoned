@@ -20,6 +20,7 @@ pub const EDIT_TYPES: [&str; 6] = ["Object", "Array", "String", "Number", "Boole
 pub enum EditMode {
     Edit,      // editing an existing node (v0.3)
     AddChild,  // adding a new child to a container
+    Rename,    // renaming an existing key in an Object
 }
 
 pub enum EditPhase {
@@ -54,6 +55,8 @@ pub struct App {
     pub clipboard: Option<JNode>,
     pub show_left: bool,
     pub show_preview: bool,
+    pub undo_stack: Vec<JNode>,
+    pub redo_stack: Vec<JNode>,
 }
 
 impl App {
@@ -77,6 +80,7 @@ impl App {
             file, modified: false, status, quit: false, confirm_quit: false, save_dialog: false,
             edit: None, clipboard: None,
             show_left: true, show_preview: true,
+            undo_stack: Vec::new(), redo_stack: Vec::new(),
         })
     }
 
@@ -142,6 +146,7 @@ impl App {
                 self.toggle_collapse();
             }
             (KeyModifiers::NONE, Char('e')) => { self.confirm_quit = false; self.start_edit(); }
+            (KeyModifiers::NONE, Char('r')) => { self.confirm_quit = false; self.start_rename(); }
             (KeyModifiers::NONE, Char('a')) => { self.confirm_quit = false; self.start_add_child(); }
             (KeyModifiers::NONE, Char('d')) => { self.confirm_quit = false; self.delete_node(); }
             (KeyModifiers::SHIFT, Char('D')) | (KeyModifiers::NONE, Char('D')) => { self.confirm_quit = false; self.duplicate_node(); }
@@ -150,6 +155,11 @@ impl App {
             (KeyModifiers::SHIFT, Char('P')) | (KeyModifiers::NONE, Char('P')) => { self.confirm_quit = false; self.paste_node(false); }
             (KeyModifiers::SHIFT, Char('K')) | (KeyModifiers::NONE, Char('K')) => { self.confirm_quit = false; self.move_node(true); }
             (KeyModifiers::SHIFT, Char('J')) | (KeyModifiers::NONE, Char('J')) => { self.confirm_quit = false; self.move_node(false); }
+            (KeyModifiers::NONE, Char('u')) => { self.confirm_quit = false; self.undo(); }
+            (KeyModifiers::CONTROL, Char('r')) => { self.confirm_quit = false; self.redo(); }
+            (KeyModifiers::SHIFT, Char('S')) | (KeyModifiers::NONE, Char('S')) => { self.confirm_quit = false; self.sort_children(); }
+            (KeyModifiers::SHIFT, Char('E')) | (KeyModifiers::NONE, Char('E')) => { self.confirm_quit = false; self.expand_all(); }
+            (KeyModifiers::SHIFT, Char('C')) | (KeyModifiers::NONE, Char('C')) => { self.confirm_quit = false; self.collapse_all(); }
             (KeyModifiers::NONE, Char('s')) => { self.confirm_quit = false; self.save_file(); }
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.show_preview = !self.show_preview; }
@@ -203,7 +213,12 @@ impl App {
             },
             1 => match key.code {
                 Esc => {
-                    if let Some(s) = self.edit.as_mut() {
+                    let is_rename = self.edit.as_ref()
+                        .map(|s| matches!(s.mode, EditMode::Rename))
+                        .unwrap_or(false);
+                    if is_rename {
+                        self.edit = None;
+                    } else if let Some(s) = self.edit.as_mut() {
                         s.phase = EditPhase::TypeSelect;
                         s.pending_key = None;
                     }
@@ -296,6 +311,7 @@ impl App {
         match state.mode {
             EditMode::Edit     => self.confirm_type_edit(state),
             EditMode::AddChild => self.confirm_type_add(state),
+            EditMode::Rename   => {} // TypeSelect is not reachable from Rename
         }
     }
 
@@ -362,6 +378,12 @@ impl App {
         }
 
         let Some(state) = self.edit.take() else { return };
+
+        if matches!(state.mode, EditMode::Rename) {
+            self.do_rename(state, key);
+            return;
+        }
+
         let path = state.path.clone();
         let tc = state.type_cursor;
 
@@ -400,6 +422,7 @@ impl App {
 
         match state.mode {
             EditMode::Edit => {
+                self.push_undo();
                 set_node_at_path(&mut self.root, &state.path, new_node);
                 self.refresh_flat();
                 self.modified = true;
@@ -409,6 +432,7 @@ impl App {
                 let key = state.pending_key.as_deref().map(|s| s.to_string());
                 self.insert_child(&path, key.as_deref(), new_node);
             }
+            EditMode::Rename => {} // ValueEdit is not reachable from Rename
         }
     }
 
@@ -422,6 +446,7 @@ impl App {
         let parent_path = row.path[..row.path.len() - 1].to_vec();
         let last_key = row.path.last().unwrap().clone();
 
+        self.push_undo();
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
@@ -430,7 +455,7 @@ impl App {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
                     items.remove(*i);
                 }
-                _ => return,
+                _ => { self.undo_stack.pop(); return; }
             }
         }
 
@@ -449,6 +474,7 @@ impl App {
         let last_key = row.path.last().unwrap().clone();
         let mut new_path: Option<JPath> = None;
 
+        self.push_undo();
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
@@ -507,6 +533,7 @@ impl App {
         let last_key = row.path.last().unwrap().clone();
         let mut new_path: Option<JPath> = None;
 
+        self.push_undo();
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
@@ -548,6 +575,9 @@ impl App {
         let last_key = row.path.last().unwrap().clone();
         let mut new_last_key: Option<JKey> = None;
 
+        // push_undo before the mutable borrow; pop it back if no move actually happened
+        self.push_undo();
+
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
@@ -564,7 +594,7 @@ impl App {
                     if let Some(idx) = entries.get_index_of(k.as_str()) {
                         if up && idx > 0 {
                             entries.swap_indices(idx, idx - 1);
-                            new_last_key = Some(last_key.clone()); // key unchanged
+                            new_last_key = Some(last_key.clone());
                         } else if !up && idx + 1 < entries.len() {
                             entries.swap_indices(idx, idx + 1);
                             new_last_key = Some(last_key.clone());
@@ -575,7 +605,7 @@ impl App {
             }
         }
 
-        if new_last_key.is_none() { return; }
+        if new_last_key.is_none() { self.undo_stack.pop(); return; }
 
         self.refresh_flat();
         self.modified = true;
@@ -590,6 +620,7 @@ impl App {
     fn insert_child(&mut self, container_path: &JPath, key: Option<&str>, new_node: JNode) {
         let mut new_path: Option<JPath> = None;
 
+        self.push_undo();
         if let Some(container) = get_node_at_path_mut(&mut self.root, container_path) {
             match container {
                 JNode::Array { items, collapsed } => {
@@ -649,6 +680,133 @@ impl App {
         toggle_node_collapse(&mut self.root, &path);
         self.refresh_flat();
     }
+
+    fn push_undo(&mut self) {
+        if self.undo_stack.len() >= 50 {
+            self.undo_stack.remove(0);
+        }
+        self.undo_stack.push(self.root.clone());
+        self.redo_stack.clear();
+    }
+
+    fn undo(&mut self) {
+        if let Some(prev) = self.undo_stack.pop() {
+            self.redo_stack.push(self.root.clone());
+            self.root = prev;
+            self.refresh_flat();
+            self.modified = true;
+            self.status = format!("undo · {} left", self.undo_stack.len());
+        } else {
+            self.status = "nothing to undo".to_string();
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(next) = self.redo_stack.pop() {
+            self.undo_stack.push(self.root.clone());
+            self.root = next;
+            self.refresh_flat();
+            self.modified = true;
+            self.status = format!("redo · {} forward", self.redo_stack.len());
+        } else {
+            self.status = "nothing to redo".to_string();
+        }
+    }
+
+    fn start_rename(&mut self) {
+        let Some(row) = self.flat.get(self.cursor) else { return };
+        let current_key = match row.path.last() {
+            Some(JKey::Field(k)) => k.clone(),
+            Some(JKey::Index(_)) => {
+                self.status = "array items have no key to rename".to_string();
+                return;
+            }
+            None => {
+                self.status = "cannot rename root".to_string();
+                return;
+            }
+        };
+
+        let mut ta = tui_textarea::TextArea::new(vec![current_key]);
+        ta.move_cursor(tui_textarea::CursorMove::End);
+        self.show_preview = true;
+        self.edit = Some(EditState {
+            path: row.path.clone(),
+            mode: EditMode::Rename,
+            original: None,
+            phase: EditPhase::KeyEdit(ta),
+            type_cursor: 0,
+            pending_key: None,
+        });
+    }
+
+    fn do_rename(&mut self, state: EditState, new_key: String) {
+        if state.path.is_empty() { return; }
+        let parent_path = state.path[..state.path.len() - 1].to_vec();
+        let old_key = match state.path.last() {
+            Some(JKey::Field(k)) => k.clone(),
+            _ => return,
+        };
+
+        if new_key == old_key { return; }
+
+        // Immutable check: validity and index (borrow released before mutations below)
+        let (key_exists, old_idx) = match get_node_at_path(&self.root, &parent_path) {
+            Some(JNode::Object { entries, .. }) => {
+                (entries.contains_key(&new_key), entries.get_index_of(old_key.as_str()))
+            }
+            _ => return,
+        };
+
+        if key_exists {
+            self.status = format!("key '{}' already exists", new_key);
+            return;
+        }
+        let Some(idx) = old_idx else { return; };
+
+        self.push_undo();
+        if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &parent_path) {
+            let Some((_, val)) = entries.shift_remove_index(idx) else { return; };
+            entries.shift_insert(idx, new_key.clone(), val);
+        }
+        self.refresh_flat();
+        self.modified = true;
+        let mut new_path = parent_path;
+        new_path.push(JKey::Field(new_key));
+        if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
+            self.cursor = pos;
+        }
+    }
+
+    fn sort_children(&mut self) {
+        let path = self.current_path();
+        if !matches!(get_node_at_path(&self.root, &path), Some(JNode::Object { .. })) {
+            self.status = "select an Object to sort its keys".to_string();
+            return;
+        }
+        self.push_undo();
+        if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &path) {
+            entries.sort_keys();
+        }
+        self.refresh_flat();
+        self.modified = true;
+    }
+
+    fn expand_all(&mut self) {
+        let path = self.current_path();
+        if let Some(node) = get_node_at_path_mut(&mut self.root, &path) {
+            set_all_collapsed(node, false);
+        }
+        self.refresh_flat();
+    }
+
+    fn collapse_all(&mut self) {
+        let path = self.current_path();
+        if let Some(node) = get_node_at_path_mut(&mut self.root, &path) {
+            set_all_collapsed(node, true);
+        }
+        self.refresh_flat();
+    }
 }
 
 fn initial_text(type_cursor: usize, original: &JNode) -> String {
@@ -687,6 +845,24 @@ fn unique_key(entries: &indexmap::IndexMap<String, JNode>, base: &str) -> String
         }
     }
     candidate
+}
+
+fn set_all_collapsed(node: &mut JNode, collapsed: bool) {
+    match node {
+        JNode::Object { entries, collapsed: c } => {
+            *c = collapsed;
+            for v in entries.values_mut() {
+                set_all_collapsed(v, collapsed);
+            }
+        }
+        JNode::Array { items, collapsed: c } => {
+            *c = collapsed;
+            for item in items.iter_mut() {
+                set_all_collapsed(item, collapsed);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn toggle_node_collapse(node: &mut JNode, path: &[JKey]) {

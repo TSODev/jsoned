@@ -313,7 +313,12 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
         1 => {
             if let Some(ref state) = app.edit {
                 if let EditPhase::KeyEdit(ref ta) = state.phase {
-                    render_key_editor(f, ta, inner);
+                    let title = if matches!(state.mode, EditMode::Rename) {
+                        "Rename key"
+                    } else {
+                        "New field — key name"
+                    };
+                    render_key_editor(f, ta, title, inner);
                     return;
                 }
             }
@@ -332,7 +337,7 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     render_preview_normal(f, app, inner);
 }
 
-fn render_key_editor(f: &mut Frame, ta: &tui_textarea::TextArea<'static>, inner: Rect) {
+fn render_key_editor(f: &mut Frame, ta: &tui_textarea::TextArea<'static>, title: &str, inner: Rect) {
     let parts = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
@@ -340,7 +345,7 @@ fn render_key_editor(f: &mut Frame, ta: &tui_textarea::TextArea<'static>, inner:
 
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            " New field — key name",
+            format!(" {}", title),
             Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
         ))),
         parts[0],
@@ -350,7 +355,7 @@ fn render_key_editor(f: &mut Frame, ta: &tui_textarea::TextArea<'static>, inner:
 
     f.render_widget(
         Paragraph::new(Span::styled(
-            " Enter: confirm  Esc: back to type",
+            " Enter: confirm  Esc: cancel",
             Style::default().fg(Color::DarkGray),
         )),
         parts[2],
@@ -384,7 +389,7 @@ fn render_value_editor(
                 Span::styled(key_name, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
             ])
         }
-        EditMode::AddChild => {
+        EditMode::AddChild | EditMode::Rename => {
             Line::from(Span::styled(
                 format!(" Add {} — value", type_name),
                 Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
@@ -499,17 +504,21 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     } else if let Some(ref state) = app.edit {
         let h = match (&state.phase, &state.mode) {
             (EditPhase::TypeSelect, EditMode::AddChild) =>
-                "  ↑↓: type  Enter: confirm  Esc: cancel add",
+                "  ↑↓: type  Enter: confirm  Esc: cancel",
             (EditPhase::TypeSelect, EditMode::Edit) =>
                 "  ↑↓: type  Enter: confirm  Esc: cancel",
+            (EditPhase::TypeSelect, EditMode::Rename) =>
+                "",
+            (EditPhase::KeyEdit(_), EditMode::Rename) =>
+                "  Enter: rename  Esc: cancel",
             (EditPhase::KeyEdit(_), _) =>
-                "  key name  Enter: confirm  Esc: back to type",
+                "  key name  Enter: confirm  Esc: cancel",
             (EditPhase::ValueEdit(_), _) =>
                 "  Enter: confirm  Esc: back to type",
         };
         (h, Color::DarkGray)
     } else {
-        ("  e: edit  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  s: save  q: quit", Color::DarkGray)
+        ("  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  s: save  q: quit", Color::DarkGray)
     };
 
     let text = format!(" {}{}  ·  {}{}", app.status, modified, breadcrumb, hint);
