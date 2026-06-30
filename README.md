@@ -39,6 +39,8 @@ Keyboard-driven TUI for viewing and editing JSON files — with full structural 
 - Dot-path indicator (`steps.0.extracted`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
 
+See [USAGE.md](USAGE.md) for the full reference. See [What's New](CHANGELOG.md) for the release history.
+
 ---
 
 ## Installation
@@ -100,8 +102,6 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `Ctrl+E` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
-
-See [USAGE.md](USAGE.md) for the full reference. See [What's New](CHANGELOG.md) for the release history.
 
 ---
 
