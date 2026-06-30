@@ -74,16 +74,33 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 ---
 
-## v0.7 — JSON Schema validation
+## v0.7 — Structural lint (no schema required)
 
-- [ ] `--schema schema.json` CLI flag — load a JSON Schema
-- [ ] Validation errors shown inline (red highlight on failing nodes)
-- [ ] Error list panel (`e` to toggle)
-- [ ] Schema auto-detection from `$schema` field in document
+Lightweight automatic checks with no external schema: duplicate keys in an Object,
+unexpected nulls, excessive nesting depth, etc. Runs silently and surfaces warnings
+in the status bar.
+
+- [ ] Detect duplicate keys in Objects
+- [ ] Warn on null values (TOML-incompatible)
+- [ ] Warn on excessive nesting depth
+- [ ] Lint results shown in status bar; failing nodes highlighted in Explorer
 
 ---
 
-## v0.8 — Advanced features
+## v0.8 — JSON Schema validation
+
+Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loaded from
+`--schema file.json` or auto-detected from the `$schema` field in the document.
+
+- [ ] `--schema schema.json` CLI flag — load a JSON Schema
+- [ ] Auto-detection of `$schema` field in the document on open
+- [ ] Validation run on load and after every edit
+- [ ] Failing nodes highlighted red in Explorer; `Tab` navigates between errors
+- [ ] Error count shown in status bar (`[2 errors]`)
+
+---
+
+## v0.9 — Advanced features
 
 - [ ] **Semantic diff** — compare two files side-by-side (`jsoned --diff a.json b.json`)
 - [ ] **jq filter** — `/` prefix runs a jq expression, results shown in a preview panel
