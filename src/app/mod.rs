@@ -1476,8 +1476,10 @@ fn tui_loop<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<()>
 pub fn run(file: Option<PathBuf>, stdin_content: Option<String>) -> Result<()> {
     let stdout_mode = stdin_content.is_some();
 
-    enable_raw_mode()?;
+    // Parse the document before touching the terminal — a parse error prints cleanly.
     let mut app = App::new(file, stdin_content)?;
+
+    enable_raw_mode()?;
 
     if stdout_mode {
         // TUI on stderr — stdout stays free for the JSON output
