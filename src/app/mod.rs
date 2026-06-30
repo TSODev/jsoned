@@ -133,6 +133,9 @@ impl App {
         if self.cursor >= self.flat.len() {
             self.cursor = self.flat.len().saturating_sub(1);
         }
+        if self.lint_cursor >= self.lint_warnings.len() {
+            self.lint_cursor = self.lint_warnings.len().saturating_sub(1);
+        }
     }
 
     fn current_path(&self) -> JPath {
