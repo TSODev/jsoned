@@ -8,6 +8,7 @@ mod ui;
 mod event;
 mod convert;
 mod pretty;
+mod lint;
 
 #[derive(Parser, Debug)]
 #[command(name = "jsoned", version, about = "Keyboard-driven TUI JSON viewer and editor")]

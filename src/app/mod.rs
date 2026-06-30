@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use crate::{
     convert::parse_any,
     event::{next_event, AppEvent},
+    lint::{lint, LintWarning},
     pretty::{annotate, AnnotatedLine},
     tree::{flatten, get_node_at_path, get_node_at_path_mut, set_node_at_path, JNode, JKey, JPath, JScalar},
 };
@@ -84,6 +85,9 @@ pub struct App {
     // Save-as
     pub save_as: Option<SaveAsState>,
     pub stdout_mode: bool,
+    // Lint
+    pub lint_warnings: Vec<LintWarning>,
+    pub lint_cursor: usize,
 }
 
 impl App {
@@ -105,6 +109,7 @@ impl App {
 
         let flat = flatten(&root);
         let annotated = annotate(&root);
+        let lint_warnings = lint(&root);
         Ok(Self {
             root, flat, annotated,
             cursor: 0, scroll: 0, left_scroll: 0,
@@ -117,12 +122,14 @@ impl App {
             search_matches: Vec::new(), search_match_cursor: 0, pending_g: false,
             save_as: None,
             stdout_mode,
+            lint_warnings, lint_cursor: 0,
         })
     }
 
     fn refresh_flat(&mut self) {
         self.flat = flatten(&self.root);
         self.annotated = annotate(&self.root);
+        self.lint_warnings = lint(&self.root);
         if self.cursor >= self.flat.len() {
             self.cursor = self.flat.len().saturating_sub(1);
         }
@@ -212,6 +219,14 @@ impl App {
             (KeyModifiers::NONE, Char('[')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_left = !self.show_left; }
             (KeyModifiers::NONE, Char(']')) => { self.confirm_quit = false; self.pending_g = false; self.explorer_fullscreen = false; self.show_preview = !self.show_preview; }
             (KeyModifiers::CONTROL, Char('e')) => { self.confirm_quit = false; self.pending_g = false; self.toggle_explorer_fullscreen(); }
+            (KeyModifiers::NONE, Tab) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.lint_next();
+            }
+            (KeyModifiers::SHIFT, BackTab) | (KeyModifiers::NONE, BackTab) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.lint_prev();
+            }
             (KeyModifiers::NONE, Char('/')) => {
                 self.confirm_quit = false; self.pending_g = false;
                 self.search_active = true;
@@ -1252,6 +1267,48 @@ impl App {
             set_all_collapsed(node, true);
         }
         self.refresh_flat();
+    }
+
+    fn lint_next(&mut self) {
+        if self.lint_warnings.is_empty() { return; }
+        self.lint_cursor = (self.lint_cursor + 1) % self.lint_warnings.len();
+        self.jump_to_lint(self.lint_cursor);
+    }
+
+    fn lint_prev(&mut self) {
+        if self.lint_warnings.is_empty() { return; }
+        self.lint_cursor = if self.lint_cursor == 0 {
+            self.lint_warnings.len() - 1
+        } else {
+            self.lint_cursor - 1
+        };
+        self.jump_to_lint(self.lint_cursor);
+    }
+
+    fn jump_to_lint(&mut self, idx: usize) {
+        let path = match self.lint_warnings.get(idx) {
+            Some(w) => w.path.clone(),
+            None => return,
+        };
+        self.expand_ancestors(&path.clone());
+        self.refresh_flat();
+        if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
+            self.cursor = pos;
+        }
+    }
+
+    fn expand_ancestors(&mut self, path: &JPath) {
+        for depth in 0..path.len() {
+            let prefix = &path[..depth];
+            if let Some(node) = get_node_at_path_mut(&mut self.root, prefix) {
+                match node {
+                    JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
+                        *collapsed = false;
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 
     fn toggle_explorer_fullscreen(&mut self) {

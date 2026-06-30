@@ -12,6 +12,14 @@ use crate::{
     tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
 };
 
+fn is_lint_path(app: &App, path: &[JKey]) -> bool {
+    app.lint_warnings.iter().any(|w| w.path == path)
+}
+
+fn lint_message_at<'a>(app: &'a App, path: &[JKey]) -> Option<&'a str> {
+    app.lint_warnings.iter().find(|w| w.path == path).map(|w| w.message.as_str())
+}
+
 pub fn render(f: &mut Frame, app: &App) {
     let area = f.area();
 
@@ -169,7 +177,8 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
             let row_idx = app.scroll + i;
             let is_match = !app.search_matches.is_empty()
                 && app.search_matches.binary_search(&row_idx).is_ok();
-            render_row(row, row_idx == app.cursor, is_match, key_w, type_w, val_w)
+            let is_warning = is_lint_path(app, &row.path);
+            render_row(row, row_idx == app.cursor, is_match, is_warning, key_w, type_w, val_w)
         })
         .collect();
 
@@ -230,8 +239,8 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
     f.render_widget(Paragraph::new(lines), inner);
 }
 
-fn render_row(row: &FlatRow, selected: bool, is_match: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
-    let bg = if selected { Color::Indexed(25) } else if is_match { Color::Indexed(22) } else { Color::Reset };
+fn render_row(row: &FlatRow, selected: bool, is_match: bool, is_warning: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
+    let bg = if selected { Color::Indexed(25) } else if is_warning { Color::Indexed(94) } else if is_match { Color::Indexed(22) } else { Color::Reset };
 
     let toggle = match &row.node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
@@ -610,8 +619,9 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let modified = if app.modified { " [modified]" } else { "" };
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
     let dot_path = build_dot_path(&cursor_path);
+    let cursor_warning = lint_message_at(app, &cursor_path);
 
-    // Line 1: search input OR filename · dot-path [· match X/N]
+    // Line 1: search input OR filename · dot-path [· match X/N] [· N warnings]
     let line1 = if app.search_active {
         format!(" / {}_", app.search_query)
     } else {
@@ -620,12 +630,25 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         } else {
             format!(" {}{}  ·  {}", app.status, modified, dot_path)
         };
-        if !app.search_matches.is_empty() {
+        let with_search = if !app.search_matches.is_empty() {
             format!("{}  ·  [{}/{}]", base, app.search_match_cursor + 1, app.search_matches.len())
         } else if !app.search_query.is_empty() {
             format!("{}  ·  [no match]", base)
         } else {
             base
+        };
+        let with_lint = if !app.lint_warnings.is_empty() {
+            format!("{}  ·  [{} warning{}]",
+                with_search,
+                app.lint_warnings.len(),
+                if app.lint_warnings.len() == 1 { "" } else { "s" })
+        } else {
+            with_search
+        };
+        if let Some(msg) = cursor_warning {
+            format!("{}  ⚠ {}", with_lint, msg)
+        } else {
+            with_lint
         }
     };
 
@@ -673,6 +696,17 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
             h,
             Style::default().fg(Color::Yellow).bg(Color::Indexed(236)),
         ))
+    } else if !app.lint_warnings.is_empty() {
+        Line::from(vec![
+            Span::styled(
+                "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  W: save as  s: save  q: quit  ",
+                Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
+            ),
+            Span::styled(
+                format!("Tab: next warning [{}/{}]", app.lint_cursor + 1, app.lint_warnings.len()),
+                Style::default().fg(Color::Indexed(214)).bg(Color::Indexed(236)),
+            ),
+        ])
     } else {
         Line::from(Span::styled(
             "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  W: save as  s: save  q: quit",
