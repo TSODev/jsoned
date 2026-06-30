@@ -72,24 +72,6 @@ impl JNode {
         }
     }
 
-    pub fn type_label(&self) -> &'static str {
-        match self {
-            JNode::Object { .. } => "Object",
-            JNode::Array { .. } => "Array",
-            JNode::Scalar(JScalar::Null) => "null",
-            JNode::Scalar(JScalar::Bool(_)) => "bool",
-            JNode::Scalar(JScalar::Number(_)) => "number",
-            JNode::Scalar(JScalar::String(_)) => "string",
-        }
-    }
-
-    pub fn child_count(&self) -> usize {
-        match self {
-            JNode::Object { entries, .. } => entries.len(),
-            JNode::Array { items, .. } => items.len(),
-            JNode::Scalar(_) => 0,
-        }
-    }
 }
 
 /// Flat row produced by walking the tree for rendering
@@ -100,7 +82,6 @@ pub struct FlatRow {
     pub index: Option<usize>,    // set for array elements
     pub node: JNode,
     pub path: JPath,
-    pub is_last_sibling: bool,
 }
 
 pub fn get_node_at_path<'a>(root: &'a JNode, path: &[JKey]) -> Option<&'a JNode> {
@@ -176,7 +157,7 @@ pub fn set_node_at_path(root: &mut JNode, path: &[JKey], new_node: JNode) {
 
 pub fn flatten(root: &JNode) -> Vec<FlatRow> {
     let mut rows = Vec::new();
-    flatten_node(root, 0, None, None, &[], true, &mut rows);
+    flatten_node(root, 0, None, None, &[], &mut rows);
     rows
 }
 
@@ -186,11 +167,9 @@ fn flatten_node(
     key: Option<String>,
     index: Option<usize>,
     path: &[JKey],
-    is_last: bool,
     out: &mut Vec<FlatRow>,
 ) {
-    let my_path = path.to_vec();
-    out.push(FlatRow { depth, key: key.clone(), index, node: node.clone(), path: my_path, is_last_sibling: is_last });
+    out.push(FlatRow { depth, key: key.clone(), index, node: node.clone(), path: path.to_vec() });
 
     if node.is_collapsed() {
         return;
@@ -198,19 +177,17 @@ fn flatten_node(
 
     match node {
         JNode::Object { entries, .. } => {
-            let len = entries.len();
-            for (i, (k, child)) in entries.iter().enumerate() {
+            for (k, child) in entries.iter() {
                 let mut child_path = path.to_vec();
                 child_path.push(JKey::Field(k.clone()));
-                flatten_node(child, depth + 1, Some(k.clone()), None, &child_path, i + 1 == len, out);
+                flatten_node(child, depth + 1, Some(k.clone()), None, &child_path, out);
             }
         }
         JNode::Array { items, .. } => {
-            let len = items.len();
             for (i, child) in items.iter().enumerate() {
                 let mut child_path = path.to_vec();
                 child_path.push(JKey::Index(i));
-                flatten_node(child, depth + 1, None, Some(i), &child_path, i + 1 == len, out);
+                flatten_node(child, depth + 1, None, Some(i), &child_path, out);
             }
         }
         JNode::Scalar(_) => {}
