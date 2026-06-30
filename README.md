@@ -1,25 +1,27 @@
 # jsoned
 
-Keyboard-driven TUI for viewing and editing JSON files — with format conversion between JSON, YAML, TOML, and CSV.
+[![crates.io](https://img.shields.io/crates/v/jsoned.svg)](https://crates.io/crates/jsoned)
+[![license](https://img.shields.io/crates/l/jsoned.svg)](LICENSE)
+[![rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
 
-```
-┌─ Source [[] ──────┬─── Explorer [^E] ──────────────────────────────────────────┐
-│  1  {             │ Key              Type        Value                          │
-│  2    "name":..   │ ▼ {}             Object                                    │
-│  3    "age": 32,  │   " name         String      Alice                         │
-│  4    "address":{ │   № age          Number      32                            │
-│  5      "street.. │ ▼ {} address     Object                                    │
-│  6      "city":.. │     " street     String      12 rue de la Paix             │
-│                   │     " city       String      Paris                         │
-│                   ├─── Detail [] ──────────────────────────────────────────────┤
-│                   │  {} address                                                 │
-│                   │  {                                                          │
-│                   │    "street": "12 rue de la Paix",                          │
-│                   │    "city": "Paris"                                          │
-└───────────────────┴────────────────────────────────────────────────────────────┘
- user.json  ·  address.city
- e: edit  r: rename  a: add  w: wrap  d: del  D: dup  /: search  s: save  q: quit
-```
+**`jless`, but you can actually edit things.**
+
+Keyboard-driven TUI for viewing and editing JSON files — with full structural editing, undo/redo, search, and format conversion between JSON, YAML, TOML, and CSV.
+
+![jsoned screenshot](https://raw.githubusercontent.com/TSODev/jsoned/main/assets/screenshot.png)
+
+---
+
+## Why not jless / fx / jq?
+
+| Tool | View | Edit | Convert | Pipe mode |
+|------|------|------|---------|-----------|
+| **jsoned** | ✓ | ✓ full | ✓ | ✓ |
+| jless | ✓ | ✗ read-only | ✗ | ✗ |
+| fx | ✓ | ✗ filter only | ✗ | ✗ |
+| jq | ✗ no TUI | ✗ | partial | ✓ |
+
+---
 
 ## Features
 
@@ -32,9 +34,12 @@ Keyboard-driven TUI for viewing and editing JSON files — with format conversio
 - **Sort** Object children alphabetically; **expand** or **collapse** entire subtrees
 - **Search** — `/` to search keys and values, `n`/`N` to navigate matches
 - **Save as** any supported format with `W` — format picker + filename editor in-TUI
-- **Convert** between JSON, YAML, TOML, and CSV — interactively or headless
-- Dot-path indicator (`address.city`) always shows where you are in the tree
+- **Pipe mode** — `cat file.json | jsoned` reads stdin; `s` writes JSON to stdout and exits
+- **Headless conversion** — `jsoned file.yaml --to json` with no TUI
+- Dot-path indicator (`steps.0.extracted`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
+
+---
 
 ## Installation
 
@@ -43,6 +48,8 @@ cargo install jsoned
 ```
 
 Requires Rust 1.75+.
+
+---
 
 ## Usage
 
@@ -54,6 +61,7 @@ jsoned                    # start with an empty JSON object
 # Stdin / stdout pipe mode
 cat file.json | jsoned              # read from stdin, TUI on stderr
 cat file.json | jsoned > out.json   # edit then s to write to stdout and exit
+TERAPI_JSON_EDITOR=jsoned terapi …  # drop-in external editor integration
 
 # Headless conversion — no TUI
 jsoned file.yaml --to json
@@ -62,6 +70,8 @@ jsoned data.csv  --to json
 ```
 
 Supported formats: `json`, `yaml`, `toml`, `csv`
+
+---
 
 ## Keybindings
 
@@ -91,7 +101,9 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
 
-See [USAGE.md](USAGE.md) for the full reference.
+See [USAGE.md](USAGE.md) for the full reference. See [What's New](CHANGELOG.md) for the release history.
+
+---
 
 ## Format notes
 
@@ -101,6 +113,8 @@ See [USAGE.md](USAGE.md) for the full reference.
 | YAML | ✓ | ✓ | |
 | TOML | ✓ | ✓ | `null` values not supported by TOML |
 | CSV | ✓ | ✓ | Export: dot-notation flatten + 1-level explosion; root can be object or array |
+
+---
 
 ## Author
 
