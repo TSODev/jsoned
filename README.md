@@ -33,6 +33,7 @@ Keyboard-driven TUI for viewing and editing JSON files — with full structural 
 - **Copy / paste** nodes within the document
 - **Sort** Object children alphabetically; **expand** or **collapse** entire subtrees
 - **Search** — `/` to search keys and values, `n`/`N` to navigate matches
+- **Structural lint** — automatic checks on load and after every edit (null values, empty keys, excessive depth); warnings highlighted in orange; `Tab`/`Shift+Tab` to navigate; correcting a node clears its warning instantly
 - **Save as** any supported format with `W` — format picker + filename editor in-TUI
 - **Pipe mode** — `cat file.json | jsoned` reads stdin; `s` writes JSON to stdout and exits
 - **Headless conversion** — `jsoned file.yaml --to json` with no TUI
@@ -96,6 +97,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `u` / `Ctrl+R` | Undo / redo |
 | `/` | Search by key or value |
 | `n` / `N` | Next / previous match |
+| `Tab` / `Shift+Tab` | Next / previous lint warning |
 | `s` | Save |
 | `W` | Save as (format picker + filename editor) |
 | `[` / `]` | Toggle Source / Detail panel |

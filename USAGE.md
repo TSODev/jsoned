@@ -10,6 +10,7 @@
 - [Editing values](#editing-values)
 - [Editing structure](#editing-structure)
 - [Search](#search)
+- [Structural lint](#structural-lint)
 - [Jump navigation](#jump-navigation)
 - [Undo and redo](#undo-and-redo)
 - [Saving](#saving)
@@ -119,6 +120,29 @@ Press `/` to open the search bar. Type to filter — matching rows are highlight
 
 > Search matches visible rows only — collapsed subtrees are not searched.
 
+## Structural lint
+
+jsoned automatically checks the document on load and after every edit. Warning rows are highlighted in **orange** in the Explorer.
+
+**Checks performed:**
+
+| Warning | Cause |
+|---------|-------|
+| `null value` | A scalar field is `null` |
+| `empty key` | An Object has a key `""` |
+| `excessive nesting depth` | A node is nested more than 20 levels deep |
+
+The status bar shows `[N warnings]` when issues are found. When the cursor is on a warning node, the message appears inline: `⚠ null value`.
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Jump to next warning (expands collapsed ancestors if needed) |
+| `Shift+Tab` | Jump to previous warning |
+
+**Inline correction:** fixing a node (editing a null, renaming an empty key, etc.) clears its warning immediately — no manual refresh needed.
+
+---
+
 ## Jump navigation
 
 | Key | Action |
@@ -212,6 +236,13 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `N` | Previous match |
 | `gg` | Jump to first row |
 | `G` | Jump to last row |
+
+### Lint
+
+| Key | Action |
+|-----|--------|
+| `Tab` | Next lint warning |
+| `Shift+Tab` | Previous lint warning |
 
 ### View
 
