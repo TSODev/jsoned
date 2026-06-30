@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Structural lint (v0.7) — automatic checks on load and after every edit: null values, empty keys `""`, nesting depth > 20; warning rows highlighted orange in Explorer; `Tab`/`Shift+Tab` navigate between warnings; auto-expands collapsed ancestors when jumping; correcting a node clears its warning instantly
+- Structural lint (v0.7) — automatic checks on load and after every edit: empty keys `""`, nesting depth > 20; warning rows highlighted orange in Explorer; `Tab`/`Shift+Tab` navigate between warnings; auto-expands collapsed ancestors when jumping; correcting a node clears its warning instantly
 - Status bar shows `[N warnings]` count and `⚠ <message>` when cursor is on a warning node
 
 ### Fixed

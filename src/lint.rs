@@ -1,4 +1,4 @@
-use crate::tree::{JKey, JNode, JPath, JScalar};
+use crate::tree::{JKey, JNode, JPath};
 
 const MAX_DEPTH: usize = 20;
 
@@ -23,12 +23,6 @@ fn lint_node(node: &JNode, path: &[JKey], depth: usize, out: &mut Vec<LintWarnin
     }
 
     match node {
-        JNode::Scalar(JScalar::Null) => {
-            out.push(LintWarning {
-                path: path.to_vec(),
-                message: "null value".to_string(),
-            });
-        }
         JNode::Scalar(_) => {}
         JNode::Object { entries, .. } => {
             for (k, child) in entries {

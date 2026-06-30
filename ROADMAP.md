@@ -78,8 +78,7 @@ The secondary goal is to be usable as an **external editor** from other terminal
 
 Lightweight automatic checks with no external schema. Runs on load and after every edit.
 
-- [x] Warn on null values (TOML-incompatible)
-- [x] Warn on empty keys `""`
+- [x] Warn on empty keys `""` (null values are valid JSON — flagged only on TOML export)
 - [x] Warn on excessive nesting depth (> 20)
 - [x] Warning rows highlighted orange in Explorer; `Tab`/`Shift+Tab` to navigate
 - [x] Status bar shows `[N warnings]` count and inline message on cursor node

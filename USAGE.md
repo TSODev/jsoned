@@ -128,7 +128,6 @@ jsoned automatically checks the document on load and after every edit. Warning r
 
 | Warning | Cause |
 |---------|-------|
-| `null value` | A scalar field is `null` |
 | `empty key` | An Object has a key `""` |
 | `excessive nesting depth` | A node is nested more than 20 levels deep |
 
