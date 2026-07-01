@@ -87,6 +87,20 @@ Lightweight automatic checks with no external schema. Runs on load and after eve
 
 ---
 
+## Plugin system — jq ✅ (shipped ahead of schedule, supersedes the v0.9 jq filter item below)
+
+An internal, compiled-in plugin registry (`Plugin` trait in `src/plugin.rs`) so filters/transforms
+can be added without touching `app`/`ui` logic. Not a dynamic/external plugin system — adding a
+plugin still means adding a Rust module and registering it in `plugin::registry()`.
+
+- [x] `Plugin` trait — `run(&self, input: &JNode, arg: &str) -> Result<JNode>`
+- [x] `|` — opens a Plugins menu, pick a plugin, type an argument, `Enter` applies the result to
+      the selected node (replaces it in place; `u` undoes)
+- [x] `jq` plugin — bundled `jaq` (pure-Rust jq clone), keeps the single-binary promise (no
+      external `jq` dependency); multiple filter outputs collapse into a JSON array
+
+---
+
 ## v0.8 — JSON Schema validation
 
 Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loaded from
@@ -103,7 +117,9 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
 ## v0.9 — Advanced features
 
 - [ ] **Semantic diff** — compare two files side-by-side (`jsoned --diff a.json b.json`)
-- [ ] **jq filter** — `/` prefix runs a jq expression, results shown in a preview panel
+- [ ] **More plugins** — codegen (struct/type generation for a target language), web import +
+      prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
+      need the `Plugin` trait to grow (non-`JNode` output, async work)
 - [ ] **Multi-tab** — open multiple files, `Tab` to switch
 - [ ] **Large file performance** — lazy flatten for documents > 10k nodes
 - [ ] **JSONLines** — stream-friendly format (one JSON object per line)

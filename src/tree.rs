@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 /// Core mutable tree — the editing model.
 /// Deliberately separate from serde_json::Value so we can track
 /// cursor position, collapsed state, and undo history independently.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum JNode {
     Object { entries: IndexMap<String, JNode>, collapsed: bool },
     Array  { items: Vec<JNode>, collapsed: bool },

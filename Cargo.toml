@@ -27,3 +27,6 @@ anyhow       = "1"
 clap         = { version = "4", features = ["derive"] }
 indexmap     = { version = "2", features = ["serde"] }
 tui-textarea = { version = "0.7", features = ["crossterm"] }
+jaq-core     = "3.1.0"
+jaq-std      = "3.0.1"
+jaq-json     = "2.0.1"

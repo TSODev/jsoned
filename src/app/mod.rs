@@ -11,6 +11,7 @@ use crate::{
     convert::parse_any,
     event::{next_event, AppEvent},
     lint::{lint, LintWarning},
+    plugin::{registry as plugin_registry, Plugin},
     pretty::{annotate, AnnotatedLine},
     tree::{flatten, get_node_at_path, get_node_at_path_mut, set_node_at_path, JNode, JKey, JPath, JScalar},
 };
@@ -54,6 +55,16 @@ pub struct EditState {
     pub insert_after: Option<usize>, // Some(idx) → insert sibling after position idx in parent
 }
 
+pub enum PluginPhase {
+    Menu,
+    Prompt(tui_textarea::TextArea<'static>),
+}
+
+pub struct PluginState {
+    pub phase: PluginPhase,
+    pub menu_cursor: usize,
+}
+
 pub struct App {
     pub root: JNode,
     pub flat: Vec<crate::tree::FlatRow>,
@@ -88,6 +99,8 @@ pub struct App {
     // Lint
     pub lint_warnings: Vec<LintWarning>,
     pub lint_cursor: usize,
+    // Plugins
+    pub plugin: Option<PluginState>,
 }
 
 impl App {
@@ -123,6 +136,7 @@ impl App {
             save_as: None,
             stdout_mode,
             lint_warnings, lint_cursor: 0,
+            plugin: None,
         })
     }
 
@@ -157,6 +171,11 @@ impl App {
 
         if self.edit.is_some() {
             self.handle_key_edit(key);
+            return;
+        }
+
+        if self.plugin.is_some() {
+            self.handle_key_plugin(key);
             return;
         }
 
@@ -229,6 +248,10 @@ impl App {
             (KeyModifiers::SHIFT, BackTab) | (KeyModifiers::NONE, BackTab) => {
                 self.confirm_quit = false; self.pending_g = false;
                 self.lint_prev();
+            }
+            (KeyModifiers::SHIFT, Char('|')) | (KeyModifiers::NONE, Char('|')) => {
+                self.confirm_quit = false; self.pending_g = false;
+                self.start_plugin_menu();
             }
             (KeyModifiers::NONE, Char('/')) => {
                 self.confirm_quit = false; self.pending_g = false;
@@ -1108,6 +1131,96 @@ impl App {
             self.search_match_cursor - 1
         };
         self.cursor = self.search_matches[self.search_match_cursor];
+    }
+
+    fn start_plugin_menu(&mut self) {
+        self.plugin = Some(PluginState { phase: PluginPhase::Menu, menu_cursor: 0 });
+    }
+
+    fn handle_key_plugin(&mut self, key: crossterm::event::KeyEvent) {
+        use KeyCode::*;
+
+        let phase_kind = match self.plugin.as_ref().map(|s| &s.phase) {
+            Some(PluginPhase::Menu)      => 0,
+            Some(PluginPhase::Prompt(_)) => 1,
+            None => return,
+        };
+
+        let plugins = plugin_registry();
+
+        match phase_kind {
+            0 => match key.code {
+                Esc => { self.plugin = None; }
+                Up => {
+                    if let Some(s) = self.plugin.as_mut() {
+                        s.menu_cursor = s.menu_cursor.saturating_sub(1);
+                    }
+                }
+                Down => {
+                    if let Some(s) = self.plugin.as_mut() {
+                        s.menu_cursor = (s.menu_cursor + 1).min(plugins.len().saturating_sub(1));
+                    }
+                }
+                Enter => self.confirm_plugin_select(&plugins),
+                _ => {}
+            },
+            _ => match key.code {
+                Esc => {
+                    if let Some(s) = self.plugin.as_mut() {
+                        s.phase = PluginPhase::Menu;
+                    }
+                }
+                Enter => self.run_plugin(&plugins),
+                _ => {
+                    if let Some(s) = self.plugin.as_mut() {
+                        if let PluginPhase::Prompt(ta) = &mut s.phase {
+                            ta.input(key);
+                        }
+                    }
+                }
+            },
+        }
+    }
+
+    fn confirm_plugin_select(&mut self, plugins: &[Box<dyn Plugin>]) {
+        let Some(cursor) = self.plugin.as_ref().map(|s| s.menu_cursor) else { return };
+        if plugins.get(cursor).is_none() { return; }
+
+        let ta = tui_textarea::TextArea::new(vec![String::new()]);
+        self.show_preview = true;
+        if let Some(s) = self.plugin.as_mut() {
+            s.phase = PluginPhase::Prompt(ta);
+        }
+    }
+
+    fn run_plugin(&mut self, plugins: &[Box<dyn Plugin>]) {
+        let Some(state) = self.plugin.as_ref() else { return };
+        let PluginPhase::Prompt(ref ta) = state.phase else { return };
+        let arg = ta.lines().first().cloned().unwrap_or_default();
+        let cursor = state.menu_cursor;
+
+        if arg.trim().is_empty() {
+            self.status = "expression cannot be empty".to_string();
+            return;
+        }
+
+        let Some(plugin) = plugins.get(cursor) else { return };
+        let path = self.current_path();
+        let Some(node) = get_node_at_path(&self.root, &path) else { return };
+
+        match plugin.run(node, arg.trim()) {
+            Ok(new_node) => {
+                self.push_undo();
+                set_node_at_path(&mut self.root, &path, new_node);
+                self.refresh_flat();
+                self.modified = true;
+                self.plugin = None;
+                self.status = format!("{} applied", plugin.name());
+            }
+            Err(e) => {
+                self.status = format!("{}: {e}", plugin.name());
+            }
+        }
     }
 
     fn start_wrap(&mut self) {

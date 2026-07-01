@@ -7,7 +7,8 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, EditMode, EditPhase, EditState, SaveAsPhase, EDIT_TYPES, SAVE_AS_FORMATS},
+    app::{App, EditMode, EditPhase, EditState, PluginPhase, SaveAsPhase, EDIT_TYPES, SAVE_AS_FORMATS},
+    plugin::registry as plugin_registry,
     pretty::{annotate, SegColor},
     tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
 };
@@ -43,6 +44,9 @@ pub fn render(f: &mut Frame, app: &App) {
     let force_preview = matches!(
         app.save_as.as_ref().map(|s| &s.phase),
         Some(SaveAsPhase::FilenameEdit(_))
+    ) || matches!(
+        app.plugin.as_ref().map(|s| &s.phase),
+        Some(PluginPhase::Prompt(_))
     );
     let (table_area, preview_area) = if app.show_preview || force_preview {
         let v = Layout::default()
@@ -69,6 +73,11 @@ pub fn render(f: &mut Frame, app: &App) {
     if let Some(ref sa) = app.save_as {
         if matches!(sa.phase, SaveAsPhase::FormatPick) {
             render_save_as_format_picker(f, area, sa.format_cursor);
+        }
+    }
+    if let Some(ref ps) = app.plugin {
+        if matches!(ps.phase, PluginPhase::Menu) {
+            render_plugin_menu(f, area, ps.menu_cursor);
         }
     }
 }
@@ -327,13 +336,18 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
         Some(SaveAsPhase::FilenameEdit(_))
     );
 
+    let plugin_prompt = matches!(
+        app.plugin.as_ref().map(|s| &s.phase),
+        Some(PluginPhase::Prompt(_))
+    );
+
     let phase_kind = match app.edit.as_ref().map(|s| &s.phase) {
         Some(EditPhase::KeyEdit(_))   => 1,
         Some(EditPhase::ValueEdit(_)) => 2,
         _ => 0,
     };
 
-    let border_col = if phase_kind > 0 || save_as_filename { Color::Yellow } else { Color::DarkGray };
+    let border_col = if phase_kind > 0 || save_as_filename || plugin_prompt { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
@@ -348,6 +362,17 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
             if let SaveAsPhase::FilenameEdit(ref ta) = sa.phase {
                 let fmt_name = SAVE_AS_FORMATS.get(sa.format_cursor).copied().unwrap_or("JSON");
                 render_save_as_filename_editor(f, ta, fmt_name, inner);
+                return;
+            }
+        }
+    }
+
+    if plugin_prompt {
+        if let Some(ref ps) = app.plugin {
+            if let PluginPhase::Prompt(ref ta) = ps.phase {
+                let plugins = plugin_registry();
+                let title = plugins.get(ps.menu_cursor).map(|p| p.prompt()).unwrap_or("argument:");
+                render_key_editor(f, ta, title, inner);
                 return;
             }
         }
@@ -578,6 +603,47 @@ fn render_save_as_filename_editor(
     );
 }
 
+// ── Plugin menu ───────────────────────────────────────────────────────────────
+
+fn render_plugin_menu(f: &mut Frame, area: Rect, menu_cursor: usize) {
+    let plugins = plugin_registry();
+
+    let w = 30u16;
+    let h = (plugins.len() as u16 + 4).max(6);
+    let x = area.x + area.width.saturating_sub(w) / 2;
+    let y = area.y + area.height.saturating_sub(h) / 2;
+    let popup = Rect::new(x, y, w.min(area.width), h.min(area.height));
+
+    f.render_widget(Clear, popup);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow))
+        .title(Span::styled(" Plugins ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+    let inner = block.inner(popup);
+    f.render_widget(block, popup);
+
+    let mut lines: Vec<Line> = plugins.iter().enumerate()
+        .map(|(i, p)| {
+            let selected = i == menu_cursor;
+            let (fg, bg) = if selected { (Color::Black, Color::Yellow) } else { (Color::White, Color::Reset) };
+            let marker = if selected { " ▶ " } else { "   " };
+            Line::from(Span::styled(
+                format!("{}{}", marker, p.name()),
+                Style::default().fg(fg).bg(bg),
+            ))
+        })
+        .collect();
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  ↑↓ select  Enter  Esc: cancel",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
 // ── Save dialog ──────────────────────────────────────────────────────────────
 
 fn render_save_dialog(f: &mut Frame, area: Rect) {
@@ -696,10 +762,16 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
             h,
             Style::default().fg(Color::Yellow).bg(Color::Indexed(236)),
         ))
+    } else if let Some(ref ps) = app.plugin {
+        let h = match ps.phase {
+            PluginPhase::Menu       => "  ↑↓: select  Enter: choose  Esc: cancel",
+            PluginPhase::Prompt(_)  => "  Enter: run  Esc: back to plugins",
+        };
+        Line::from(Span::styled(h, Style::default().fg(Color::Yellow).bg(Color::Indexed(236))))
     } else if !app.lint_warnings.is_empty() {
         Line::from(vec![
             Span::styled(
-                "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  W: save as  s: save  q: quit  ",
+                "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  |: plugins  W: save as  s: save  q: quit  ",
                 Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
             ),
             Span::styled(
@@ -709,7 +781,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         ])
     } else {
         Line::from(Span::styled(
-            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  W: save as  s: save  q: quit",
+            "  e: edit  r: rename  a: add  d: del  D: dup  y: copy  p/P: paste  K/J: move  u: undo  S: sort  E/C: expand/collapse  w: wrap  |: plugins  W: save as  s: save  q: quit",
             Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
         ))
     };

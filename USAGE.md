@@ -11,6 +11,7 @@
 - [Editing structure](#editing-structure)
 - [Search](#search)
 - [Structural lint](#structural-lint)
+- [Plugins](#plugins)
 - [Jump navigation](#jump-navigation)
 - [Undo and redo](#undo-and-redo)
 - [Saving](#saving)
@@ -142,6 +143,41 @@ The status bar shows `[N warnings]` when issues are found. When the cursor is on
 
 ---
 
+## Plugins
+
+Press `|` to open the **Plugins** menu — a popup listing available transformations. Select one
+with `↑`/`↓` and `Enter`, then type an argument in the prompt that opens in the Detail panel.
+`Enter` runs the plugin and **replaces the selected node** with its result; `Esc` at the prompt
+goes back to the menu, `Esc` at the menu cancels. If the plugin errors (e.g. a malformed
+expression), the error is shown in the status bar and the prompt stays open so you can fix it.
+A successful run is a normal edit — `u` undoes it like any other change.
+
+### `jq`
+
+Runs a [jq](https://jqlang.github.io/jq/) filter with the selected node as input (select the
+root to run the filter against the whole document). Powered by the bundled
+[`jaq`](https://github.com/01mf02/jaq) engine — a pure-Rust jq implementation, so no external
+`jq` binary is required.
+
+```
+| → jq → .users[].name → Enter
+```
+
+If the filter produces more than one output (e.g. `.users[]`), the outputs are collected into a
+JSON array and used as the replacement.
+
+> Plugins are compiled into the binary — there's no dynamic loading of external/third-party
+> plugins (yet). Adding one means adding a Rust module that implements the `Plugin` trait.
+
+| Key | Action |
+|-----|--------|
+| `\|` | Open Plugins menu |
+| `↑` / `↓` | Select plugin |
+| `Enter` | Confirm selection / run plugin |
+| `Esc` | Back to menu (from prompt) / cancel (from menu) |
+
+---
+
 ## Jump navigation
 
 | Key | Action |
@@ -242,6 +278,12 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 |-----|--------|
 | `Tab` | Next lint warning |
 | `Shift+Tab` | Previous lint warning |
+
+### Plugins
+
+| Key | Action |
+|-----|--------|
+| `\|` | Open Plugins menu |
 
 ### View
 

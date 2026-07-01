@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Plugin system — `|` opens a Plugins menu; pick a plugin, type an argument, `Enter` applies the result to the selected node (replaces it in place; `u` undoes). Internal, compiled-in registry (`Plugin` trait) — not a dynamic/external plugin loader
+- `jq` plugin — run a jq filter against the selected node; bundled via the pure-Rust `jaq` crate, so no external `jq` binary is required; multiple filter outputs collapse into a JSON array
 - Structural lint (v0.7) — automatic checks on load and after every edit: empty keys `""`, nesting depth > 20; warning rows highlighted orange in Explorer; `Tab`/`Shift+Tab` navigate between warnings; auto-expands collapsed ancestors when jumping; correcting a node clears its warning instantly
 - Status bar shows `[N warnings]` count and `⚠ <message>` when cursor is on a warning node
 
