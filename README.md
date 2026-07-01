@@ -120,6 +120,15 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 
 ---
 
+## Other projects by TSODev
+
+| Project | Description |
+|---------|-------------|
+| [terapi](https://github.com/TSODev/terapi) | A keyboard-driven TUI for exploring, testing, and automating REST and GraphQL APIs, without leaving your terminal. |
+| [rowdy-db](https://github.com/TSODev/rowdy-db) | A fast, modern, and rowdy Terminal User Interface (TUI) database management tool written in Rust. |
+
+---
+
 ## Author
 
 Thierry Soulie — TSODev — <thierry.soulie@tsodev.fr>
