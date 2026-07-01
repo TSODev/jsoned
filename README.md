@@ -12,14 +12,20 @@ Keyboard-driven TUI for viewing and editing JSON files — with full structural 
 
 ---
 
-## Why not jless / fx / jq?
+## Why not jless / fx / jq / difftastic?
 
-| Tool | View | Edit | Convert | Pipe mode |
-|------|------|------|---------|-----------|
-| **jsoned** | ✓ | ✓ full | ✓ | ✓ |
-| jless | ✓ | ✗ read-only | ✗ | ✗ |
-| fx | ✓ | ✗ filter only | ✗ | ✗ |
-| jq | ✗ no TUI | ✗ | partial | ✓ |
+| Tool | View | Edit | Convert | Diff | Pipe mode |
+|------|------|------|---------|------|-----------|
+| **jsoned** | ✓ | ✓ full | ✓ | ✓ structural | ✓ |
+| jless | ✓ | ✗ read-only | ✗ | ✗ | ✗ |
+| fx | ✓ | ✗ filter only | ✗ | ✗ | ✗ |
+| jq | ✗ no TUI | ✗ | partial | ✗ | ✓ |
+| difftastic / delta | ✗ no TUI | ✗ | ✗ | ✓ line-based | ✓ |
+
+jsoned's diff is **structural** (compares by key path, not by line) — it's not trying to replace
+difftastic/delta for general text diffing, but it understands JSON/YAML/TOML/CSV shape directly,
+so reordered keys or reformatted whitespace don't show up as noise, and it can even diff across
+two different formats (`a.json --diff b.yaml`).
 
 ---
 
