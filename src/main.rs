@@ -12,6 +12,7 @@ mod lint;
 mod plugin;
 mod diff;
 mod diff_app;
+mod redact;
 
 #[derive(Parser, Debug)]
 #[command(name = "jsoned", version, about = "Keyboard-driven TUI JSON viewer and editor")]
@@ -31,6 +32,12 @@ struct Cli {
     /// diff TUI, or with --to text|json prints a headless diff report and exits
     #[arg(long, value_name = "FILE")]
     diff: Option<PathBuf>,
+
+    /// Comma-separated key names to mask (case-insensitive, applied recursively anywhere in the
+    /// tree) before headless conversion — e.g. --redact password,apiKey,token. Values are
+    /// replaced with "***REDACTED***"; key names and document shape are preserved.
+    #[arg(long, value_name = "KEYS", value_delimiter = ',')]
+    redact: Vec<String>,
 }
 
 fn main() -> Result<()> {
@@ -52,7 +59,7 @@ fn main() -> Result<()> {
     // Headless conversion mode: jsoned input.yaml --to json
     if let Some(ref fmt) = cli.to {
         let input = cli.file.as_ref().ok_or_else(|| anyhow::anyhow!("input file required for conversion"))?;
-        return convert::convert_file(input, fmt, cli.output.as_deref());
+        return convert::convert_file(input, fmt, cli.output.as_deref(), &cli.redact);
     }
 
     // Stdin pipe mode: cat file.json | jsoned  (only when no file arg given)

@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Performance indicator in the status bar — on documents over 5,000 flattened rows, Line 1 shows
   `<N> rows in <T>ms`, the row count and time spent rebuilding the Explorer/Source panels after
   the most recent load or edit; hidden below that threshold, no toggle
+- Redact on export — mask sensitive values (API keys, passwords, tokens) when saving a copy for
+  someone else, without ever touching the document you're actively editing (only the exported
+  copy is affected, `self.root` is never mutated). Two matching modes on the same key list: exact
+  object-key match (whole value replaced with `***REDACTED***`) and inline `name=value` matching
+  inside any string value (masks just the value portion, e.g. a pagination URL's embedded
+  `api_key=...` query parameter, leaving the rest of the string untouched). Case-insensitive on
+  the exact name, not fuzzy across naming conventions (`api_key` and `apiKey` are distinct — list
+  both if both appear). TUI: new step in the `W` (Save as) flow between format and filename
+  (comma-separated names, blank = skip). Headless: `--redact key1,key2` alongside `--to`
 
 ### Performance
 - `flatten()` no longer deep-clones each row's full subtree (`FlatRow` looks up its node on demand

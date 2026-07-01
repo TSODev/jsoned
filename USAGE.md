@@ -15,6 +15,7 @@
 - [Jump navigation](#jump-navigation)
 - [Undo and redo](#undo-and-redo)
 - [Saving](#saving)
+- [Redact on export](#redact-on-export)
 - [Format conversion](#format-conversion)
   - [Headless](#headless)
 - [Diff mode](#diff-mode)
@@ -109,7 +110,7 @@ Pressing `e` on an Object or Array shows a hint — use `a` / `d` to modify cont
 | `p` | Paste clipboard after the selected node |
 | `P` | Paste clipboard before the selected node |
 | `w` | Wrap selected node — choose Array (`[node]`) or Object (`{ "key": node }`) |
-| `W` | Save as — choose format (JSON / YAML / TOML / CSV), then enter filename |
+| `W` | Save as — choose format, optionally redact keys, then enter filename (see [Redact on export](#redact-on-export)) |
 | `S` | Sort Object children alphabetically by key |
 | `E` | Expand all — recursively unfold the selected node and its descendants |
 | `C` | Collapse all — recursively fold the selected node and its descendants |
@@ -206,6 +207,39 @@ JSON array and used as the replacement.
 | `s` | Save to the original file (JSON pretty-print) |
 
 When you quit with unsaved changes, a dialog offers: **[s]** save and quit · **[n]** quit without saving · **[Esc]** cancel.
+
+## Redact on export
+
+Mask sensitive values (API keys, passwords, tokens) when handing a document to someone else,
+without ever touching the document you're actively editing. Only the exported copy is affected —
+the live document in memory is never mutated, so nothing needs undoing afterward.
+
+**Two ways a name in your list gets masked:**
+- **Exact key match** — an object key named e.g. `apiKey` has its entire value replaced with
+  `***REDACTED***`. The key itself and the document's shape are preserved.
+- **Inline match** — any string value, regardless of which key holds it, is scanned for
+  `name=value` occurrences (URL-query-string style) and only the value portion is masked — useful
+  for API responses whose pagination/webhook URLs embed a key as a query parameter:
+  ```
+  "next": "https://api.example.com/items?page=2&api_key=sk-real-secret-value"
+  ```
+  becomes
+  ```
+  "next": "https://api.example.com/items?page=2&api_key=***REDACTED***"
+  ```
+  (the rest of the URL, and the parameter name's original casing, are left untouched).
+
+Matching is case-insensitive on the exact name (`apiKey` matches `APIKEY`), but not fuzzy across
+naming conventions — `api_key` and `apiKey` are different strings; list both if both appear.
+
+**In the TUI**: `W` (Save as) now has a step between the format picker and the filename prompt —
+type a comma-separated list of names to redact (e.g. `password,apiKey`), or leave it blank and
+press `Enter` to skip redaction entirely.
+
+**Headless**:
+```sh
+jsoned data.json --redact password,apiKey,token --to json -o safe.json
+```
 
 ## Format conversion
 
@@ -330,7 +364,7 @@ support).
 | Key | Action |
 |-----|--------|
 | `s` | Save |
-| `W` | Save as (format conversion) |
+| `W` | Save as (format conversion + optional key redaction) |
 
 ### Search
 

@@ -45,7 +45,7 @@ pub fn render(f: &mut Frame, app: &App) {
 
     let force_preview = matches!(
         app.save_as.as_ref().map(|s| &s.phase),
-        Some(SaveAsPhase::FilenameEdit(_))
+        Some(SaveAsPhase::FilenameEdit(_)) | Some(SaveAsPhase::RedactKeys(_))
     ) || matches!(
         app.plugin.as_ref().map(|s| &s.phase),
         Some(PluginPhase::Prompt(_))
@@ -334,6 +334,11 @@ fn node_value_display(node: &JNode) -> (String, Color) {
 // ── Detail: JSON preview · key editor · value editor ────────────────────────
 
 fn render_preview(f: &mut Frame, app: &App, area: Rect) {
+    let save_as_redact = matches!(
+        app.save_as.as_ref().map(|s| &s.phase),
+        Some(SaveAsPhase::RedactKeys(_))
+    );
+
     let save_as_filename = matches!(
         app.save_as.as_ref().map(|s| &s.phase),
         Some(SaveAsPhase::FilenameEdit(_))
@@ -350,7 +355,7 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
         _ => 0,
     };
 
-    let border_col = if phase_kind > 0 || save_as_filename || plugin_prompt { Color::Yellow } else { Color::DarkGray };
+    let border_col = if phase_kind > 0 || save_as_redact || save_as_filename || plugin_prompt { Color::Yellow } else { Color::DarkGray };
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(border_col))
@@ -359,6 +364,16 @@ fn render_preview(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(block, area);
 
     if inner.height < 2 { return; }
+
+    if save_as_redact {
+        if let Some(ref sa) = app.save_as {
+            if let SaveAsPhase::RedactKeys(ref ta) = sa.phase {
+                let fmt_name = SAVE_AS_FORMATS.get(sa.format_cursor).copied().unwrap_or("JSON");
+                render_save_as_redact_editor(f, ta, fmt_name, inner);
+                return;
+            }
+        }
+    }
 
     if save_as_filename {
         if let Some(ref sa) = app.save_as {
@@ -578,6 +593,34 @@ fn render_save_as_format_picker(f: &mut Frame, area: Rect, format_cursor: usize)
     f.render_widget(Paragraph::new(lines), inner);
 }
 
+fn render_save_as_redact_editor(
+    f: &mut Frame,
+    ta: &tui_textarea::TextArea<'static>,
+    fmt_name: &str,
+    inner: Rect,
+) {
+    let parts = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1), Constraint::Length(1)])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            format!(" Save as {} — redact keys (optional)", fmt_name),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ))),
+        parts[0],
+    );
+    f.render_widget(ta, parts[1]);
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            " comma-separated, e.g. password,apiKey — Enter: confirm  Esc: back to format",
+            Style::default().fg(Color::DarkGray),
+        )),
+        parts[2],
+    );
+}
+
 fn render_save_as_filename_editor(
     f: &mut Frame,
     ta: &tui_textarea::TextArea<'static>,
@@ -746,6 +789,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     } else if let Some(ref sa) = app.save_as {
         let h = match &sa.phase {
             SaveAsPhase::FormatPick      => "  ↑↓: format  Enter: select  Esc: cancel",
+            SaveAsPhase::RedactKeys(_)   => "  Enter: confirm (blank = skip)  Esc: back to format",
             SaveAsPhase::FilenameEdit(_) => "  Enter: save  Esc: back to format",
         };
         Line::from(Span::styled(h, Style::default().fg(Color::Yellow).bg(Color::Indexed(236))))

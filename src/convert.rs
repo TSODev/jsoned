@@ -2,12 +2,13 @@ use anyhow::{anyhow, Context, Result};
 use indexmap::IndexMap;
 use std::path::Path;
 
-pub fn convert_file(input: &Path, to_fmt: &str, output: Option<&Path>) -> Result<()> {
+pub fn convert_file(input: &Path, to_fmt: &str, output: Option<&Path>, redact_keys: &[String]) -> Result<()> {
     let src = std::fs::read_to_string(input)
         .with_context(|| format!("cannot read {}", input.display()))?;
 
     let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("json");
     let value = parse_any(&src, ext)?;
+    let value = crate::redact::redact(&value, redact_keys);
 
     let out = serialize_to(&value, to_fmt)?;
 

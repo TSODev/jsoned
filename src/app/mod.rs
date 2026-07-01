@@ -24,12 +24,14 @@ pub const SAVE_AS_EXTS:    [&str; 4] = ["json", "yaml", "toml", "csv"];
 
 pub enum SaveAsPhase {
     FormatPick,
+    RedactKeys(tui_textarea::TextArea<'static>),
     FilenameEdit(tui_textarea::TextArea<'static>),
 }
 
 pub struct SaveAsState {
     pub phase: SaveAsPhase,
     pub format_cursor: usize,
+    pub redact_keys: Vec<String>, // parsed once RedactKeys is confirmed; empty = skip redaction
 }
 
 #[derive(PartialEq)]
@@ -948,6 +950,7 @@ impl App {
         self.save_as = Some(SaveAsState {
             phase: SaveAsPhase::FormatPick,
             format_cursor: 0,
+            redact_keys: Vec::new(),
         });
     }
 
@@ -956,7 +959,8 @@ impl App {
 
         let phase_kind = match self.save_as.as_ref().map(|s| &s.phase) {
             Some(SaveAsPhase::FormatPick)      => 0,
-            Some(SaveAsPhase::FilenameEdit(_)) => 1,
+            Some(SaveAsPhase::RedactKeys(_))   => 1,
+            Some(SaveAsPhase::FilenameEdit(_)) => 2,
             None => return,
         };
 
@@ -967,6 +971,21 @@ impl App {
                 Down => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = (s.format_cursor + 1).min(3); } }
                 Enter => self.confirm_save_as_format(),
                 _ => {}
+            },
+            1 => match key.code {
+                Esc => {
+                    if let Some(s) = self.save_as.as_mut() {
+                        s.phase = SaveAsPhase::FormatPick;
+                    }
+                }
+                Enter => self.confirm_save_as_redact(),
+                _ => {
+                    if let Some(s) = self.save_as.as_mut() {
+                        if let SaveAsPhase::RedactKeys(ta) = &mut s.phase {
+                            ta.input(key);
+                        }
+                    }
+                }
             },
             _ => match key.code {
                 Esc => {
@@ -997,22 +1016,49 @@ impl App {
             self.status = "warning: document contains null values — TOML does not support null".to_string();
         }
 
-        let default_name = save_as_default_filename(self.file.as_ref(), ext);
-        let mut ta = tui_textarea::TextArea::new(vec![default_name]);
-        ta.move_cursor(tui_textarea::CursorMove::End);
+        let ta = tui_textarea::TextArea::new(vec![String::new()]);
         self.show_preview = true;
 
         if let Some(s) = self.save_as.as_mut() {
+            s.phase = SaveAsPhase::RedactKeys(ta);
+        }
+    }
+
+    fn confirm_save_as_redact(&mut self) {
+        let keys: Vec<String> = match self.save_as.as_ref().map(|s| &s.phase) {
+            Some(SaveAsPhase::RedactKeys(ta)) => ta
+                .lines()
+                .first()
+                .cloned()
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
+            _ => return,
+        };
+
+        let cursor = match self.save_as.as_ref() {
+            Some(s) => s.format_cursor,
+            None => return,
+        };
+        let ext = SAVE_AS_EXTS[cursor];
+        let default_name = save_as_default_filename(self.file.as_ref(), ext);
+        let mut ta = tui_textarea::TextArea::new(vec![default_name]);
+        ta.move_cursor(tui_textarea::CursorMove::End);
+
+        if let Some(s) = self.save_as.as_mut() {
+            s.redact_keys = keys;
             s.phase = SaveAsPhase::FilenameEdit(ta);
         }
     }
 
     fn do_save_as(&mut self) {
-        let (cursor, filename) = match self.save_as.as_ref() {
+        let (cursor, filename, redact_keys) = match self.save_as.as_ref() {
             Some(s) => match &s.phase {
                 SaveAsPhase::FilenameEdit(ta) => {
                     let fname = ta.lines().first().cloned().unwrap_or_default().trim().to_string();
-                    (s.format_cursor, fname)
+                    (s.format_cursor, fname, s.redact_keys.clone())
                 }
                 _ => return,
             },
@@ -1027,6 +1073,7 @@ impl App {
         let fmt = SAVE_AS_EXTS[cursor];
         let path = std::path::PathBuf::from(&filename);
         let value = self.root.to_value();
+        let value = crate::redact::redact(&value, &redact_keys);
 
         match crate::convert::serialize_to(&value, fmt) {
             Ok(content) => match std::fs::write(&path, &content) {
