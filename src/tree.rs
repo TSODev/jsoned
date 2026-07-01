@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use std::rc::Rc;
 
 /// Core mutable tree — the editing model.
 /// Deliberately separate from serde_json::Value so we can track
@@ -21,7 +22,7 @@ pub enum JScalar {
 /// A path segment into the tree
 #[derive(Debug, Clone, PartialEq)]
 pub enum JKey {
-    Field(String),
+    Field(Rc<str>),
     Index(usize),
 }
 
@@ -80,13 +81,12 @@ pub struct FlatRow {
     pub depth: usize,
     pub key: Option<String>,     // None for array elements shown inline
     pub index: Option<usize>,    // set for array elements
-    pub node: JNode,
     pub path: JPath,
 }
 
 pub fn path_to_string(path: &[JKey]) -> String {
     path.iter().map(|k| match k {
-        JKey::Field(s) => s.clone(),
+        JKey::Field(s) => s.to_string(),
         JKey::Index(i) => i.to_string(),
     }).collect::<Vec<_>>().join(".")
 }
@@ -98,7 +98,7 @@ pub fn get_node_at_path<'a>(root: &'a JNode, path: &[JKey]) -> Option<&'a JNode>
     match root {
         JNode::Object { entries, .. } => {
             if let JKey::Field(k) = &path[0] {
-                entries.get(k).and_then(|c| get_node_at_path(c, &path[1..]))
+                entries.get(k.as_ref()).and_then(|c| get_node_at_path(c, &path[1..]))
             } else {
                 None
             }
@@ -122,7 +122,7 @@ pub fn get_node_at_path_mut<'a>(root: &'a mut JNode, path: &[JKey]) -> Option<&'
     match root {
         JNode::Object { entries, .. } => {
             if let JKey::Field(k) = first {
-                entries.get_mut(k.as_str()).and_then(|c| get_node_at_path_mut(c, rest))
+                entries.get_mut(k.as_ref()).and_then(|c| get_node_at_path_mut(c, rest))
             } else {
                 None
             }
@@ -146,7 +146,7 @@ pub fn set_node_at_path(root: &mut JNode, path: &[JKey], new_node: JNode) {
     match root {
         JNode::Object { entries, .. } => {
             if let JKey::Field(k) = &path[0] {
-                if let Some(child) = entries.get_mut(k) {
+                if let Some(child) = entries.get_mut(k.as_ref()) {
                     set_node_at_path(child, &path[1..], new_node);
                 }
             }
@@ -176,7 +176,7 @@ fn flatten_node(
     path: &[JKey],
     out: &mut Vec<FlatRow>,
 ) {
-    out.push(FlatRow { depth, key: key.clone(), index, node: node.clone(), path: path.to_vec() });
+    out.push(FlatRow { depth, key: key.clone(), index, path: path.to_vec() });
 
     if node.is_collapsed() {
         return;
@@ -186,7 +186,7 @@ fn flatten_node(
         JNode::Object { entries, .. } => {
             for (k, child) in entries.iter() {
                 let mut child_path = path.to_vec();
-                child_path.push(JKey::Field(k.clone()));
+                child_path.push(JKey::Field(Rc::from(k.as_str())));
                 flatten_node(child, depth + 1, Some(k.clone()), None, &child_path, out);
             }
         }

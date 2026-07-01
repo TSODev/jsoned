@@ -6,6 +6,7 @@ use crossterm::{
 };
 use ratatui::{backend::{Backend, CrosstermBackend}, Terminal};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::{
     convert::parse_any,
@@ -381,24 +382,27 @@ impl App {
 
     fn start_edit(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
+        let path = row.path.clone();
+        let Some(node) = get_node_at_path(&self.root, &path) else { return };
 
-        if !matches!(&row.node, JNode::Scalar(_)) {
+        if !matches!(node, JNode::Scalar(_)) {
             self.status = "use 'a' to add children · 'd' to delete · 'D' to duplicate".to_string();
             return;
         }
 
-        let type_cursor = match &row.node {
+        let type_cursor = match node {
             JNode::Scalar(JScalar::String(_))  => 2,
             JNode::Scalar(JScalar::Number(_))  => 3,
             JNode::Scalar(JScalar::Bool(_))    => 4,
             JNode::Scalar(JScalar::Null)       => 5,
             _ => 2,
         };
+        let original = node.clone();
 
         self.edit = Some(EditState {
-            path: row.path.clone(),
+            path,
             mode: EditMode::Edit,
-            original: Some(row.node.clone()),
+            original: Some(original),
             phase: EditPhase::TypeSelect,
             type_cursor,
             pending_key: None,
@@ -408,11 +412,12 @@ impl App {
 
     fn start_add_child(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
+        let path = row.path.clone();
+        let Some(node) = get_node_at_path(&self.root, &path) else { return };
 
-        match &row.node {
+        match node {
             JNode::Object { .. } | JNode::Array { .. } => {
-                let path = row.path.clone();
-                let is_collapsed = row.node.is_collapsed();
+                let is_collapsed = node.is_collapsed();
                 if is_collapsed {
                     toggle_node_collapse(&mut self.root, &path);
                     self.refresh_flat();
@@ -431,7 +436,7 @@ impl App {
                 });
             }
             JNode::Scalar(_) => {
-                let current_path = row.path.clone();
+                let current_path = path;
                 if current_path.is_empty() {
                     self.status = "cannot add sibling to root".to_string();
                     return;
@@ -441,7 +446,7 @@ impl App {
                     JKey::Index(i) => *i,
                     JKey::Field(k) => match get_node_at_path(&self.root, &parent_path) {
                         Some(JNode::Object { entries, .. }) => {
-                            entries.get_index_of(k.as_str()).unwrap_or(0)
+                            entries.get_index_of(k.as_ref()).unwrap_or(0)
                         }
                         _ => 0,
                     },
@@ -647,7 +652,7 @@ impl App {
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
-                    entries.shift_remove(k.as_str());
+                    entries.shift_remove(k.as_ref());
                 }
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
                     items.remove(*i);
@@ -666,9 +671,10 @@ impl App {
             return;
         }
 
-        let node_clone = row.node.clone();
-        let parent_path = row.path[..row.path.len() - 1].to_vec();
-        let last_key = row.path.last().unwrap().clone();
+        let path = row.path.clone();
+        let Some(node_clone) = get_node_at_path(&self.root, &path).cloned() else { return };
+        let parent_path = path[..path.len() - 1].to_vec();
+        let last_key = path.last().unwrap().clone();
         let mut new_path: Option<JPath> = None;
 
         self.push_undo();
@@ -682,11 +688,11 @@ impl App {
                     new_path = Some(p);
                 }
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
-                    let idx = entries.get_index_of(k.as_str()).unwrap_or(entries.len() - 1);
+                    let idx = entries.get_index_of(k.as_ref()).unwrap_or(entries.len() - 1);
                     let new_key = unique_key(entries, k);
                     entries.shift_insert(idx + 1, new_key.clone(), node_clone);
                     let mut p = parent_path.clone();
-                    p.push(JKey::Field(new_key));
+                    p.push(JKey::Field(Rc::from(new_key.as_str())));
                     new_path = Some(p);
                 }
                 _ => {}
@@ -710,7 +716,10 @@ impl App {
                 (None, Some(i)) => format!("Item[{}]", i),
                 (None, None) => "<root>".to_string(),
             };
-            self.clipboard = Some(row.node.clone());
+            let path = row.path.clone();
+            if let Some(node) = get_node_at_path(&self.root, &path) {
+                self.clipboard = Some(node.clone());
+            }
             self.status = format!("copied: {}", label);
         }
     }
@@ -741,13 +750,13 @@ impl App {
                     new_path = Some(p);
                 }
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
-                    let idx = entries.get_index_of(k.as_str()).unwrap_or(0);
+                    let idx = entries.get_index_of(k.as_ref()).unwrap_or(0);
                     let base = format!("{}_paste", k);
                     let new_key = unique_key(entries, &base);
                     let insert_at = if after { idx + 1 } else { idx };
                     entries.shift_insert(insert_at, new_key.clone(), node);
                     let mut p = parent_path.clone();
-                    p.push(JKey::Field(new_key));
+                    p.push(JKey::Field(Rc::from(new_key.as_str())));
                     new_path = Some(p);
                 }
                 _ => {}
@@ -788,7 +797,7 @@ impl App {
                     }
                 }
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
-                    if let Some(idx) = entries.get_index_of(k.as_str()) {
+                    if let Some(idx) = entries.get_index_of(k.as_ref()) {
                         if up && idx > 0 {
                             entries.swap_indices(idx, idx - 1);
                             new_last_key = Some(last_key.clone());
@@ -833,7 +842,7 @@ impl App {
                         *collapsed = false;
                         entries.insert(k.to_string(), new_node);
                         let mut p = container_path.to_vec();
-                        p.push(JKey::Field(k.to_string()));
+                        p.push(JKey::Field(Rc::from(k)));
                         new_path = Some(p);
                     }
                 }
@@ -870,7 +879,7 @@ impl App {
                         let idx = insert_idx.min(entries.len());
                         entries.shift_insert(idx, k.to_string(), new_node);
                         let mut p = parent_path.to_vec();
-                        p.push(JKey::Field(k.to_string()));
+                        p.push(JKey::Field(Rc::from(k)));
                         new_path = Some(p);
                     }
                 }
@@ -1098,8 +1107,8 @@ impl App {
                     .map(|k| k.to_lowercase().contains(&q))
                     .unwrap_or(false)
                     || row.index.map(|i| i.to_string().contains(&q)).unwrap_or(false);
-                let val_match = match &row.node {
-                    JNode::Scalar(s) => match s {
+                let val_match = match get_node_at_path(&self.root, &row.path) {
+                    Some(JNode::Scalar(s)) => match s {
                         JScalar::String(v) => v.to_lowercase().contains(&q),
                         JScalar::Number(v) => v.contains(&q),
                         JScalar::Bool(b) => b.to_string().contains(&q),
@@ -1247,7 +1256,7 @@ impl App {
         // new_key becomes the outer key; original_key becomes the inner key.
         // e.g.  url: "v"  +  new_key="mainurl"  →  mainurl: { url: "v" }
         if let (Some(new_key), Some(JKey::Field(original_key))) = (&key_opt, path.last()) {
-            let original_key = original_key.clone();
+            let original_key = original_key.to_string();
             let new_key = new_key.clone();
             let parent_path = path[..path.len() - 1].to_vec();
 
@@ -1264,7 +1273,7 @@ impl App {
             self.refresh_flat();
             self.modified = true;
             let mut new_path = parent_path;
-            new_path.push(JKey::Field(new_key));
+            new_path.push(JKey::Field(Rc::from(new_key.as_str())));
             if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
                 self.cursor = pos;
             }
@@ -1292,7 +1301,7 @@ impl App {
     fn start_rename(&mut self) {
         let Some(row) = self.flat.get(self.cursor) else { return };
         let current_key = match row.path.last() {
-            Some(JKey::Field(k)) => k.clone(),
+            Some(JKey::Field(k)) => k.to_string(),
             Some(JKey::Index(_)) => {
                 self.status = "array items have no key to rename".to_string();
                 return;
@@ -1321,7 +1330,7 @@ impl App {
         if state.path.is_empty() { return; }
         let parent_path = state.path[..state.path.len() - 1].to_vec();
         let old_key = match state.path.last() {
-            Some(JKey::Field(k)) => k.clone(),
+            Some(JKey::Field(k)) => k.to_string(),
             _ => return,
         };
 
@@ -1349,7 +1358,7 @@ impl App {
         self.refresh_flat();
         self.modified = true;
         let mut new_path = parent_path;
-        new_path.push(JKey::Field(new_key));
+        new_path.push(JKey::Field(Rc::from(new_key.as_str())));
         if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
             self.cursor = pos;
         }
@@ -1529,7 +1538,7 @@ fn toggle_node_collapse(node: &mut JNode, path: &[JKey]) {
     match node {
         JNode::Object { entries, .. } => {
             if let JKey::Field(k) = &path[0] {
-                if let Some(child) = entries.get_mut(k) {
+                if let Some(child) = entries.get_mut(k.as_ref()) {
                     toggle_node_collapse(child, &path[1..]);
                 }
             }

@@ -184,12 +184,13 @@ fn render_table(f: &mut Frame, app: &App, area: Rect) {
         .skip(app.scroll)
         .take(content_area.height as usize)
         .enumerate()
-        .map(|(i, row)| {
+        .filter_map(|(i, row)| {
+            let node = get_node_at_path(&app.root, &row.path)?;
             let row_idx = app.scroll + i;
             let is_match = !app.search_matches.is_empty()
                 && app.search_matches.binary_search(&row_idx).is_ok();
             let is_warning = is_lint_path(app, &row.path);
-            render_row(row, row_idx == app.cursor, is_match, is_warning, key_w, type_w, val_w)
+            Some(render_row(row, node, row_idx == app.cursor, is_match, is_warning, key_w, type_w, val_w))
         })
         .collect();
 
@@ -250,16 +251,16 @@ fn render_type_dropdown(f: &mut Frame, state: &EditState, area: Rect) {
     f.render_widget(Paragraph::new(lines), inner);
 }
 
-fn render_row(row: &FlatRow, selected: bool, is_match: bool, is_warning: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
+fn render_row(row: &FlatRow, node: &JNode, selected: bool, is_match: bool, is_warning: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
     let bg = if selected { Color::Indexed(25) } else if is_warning { Color::Indexed(94) } else if is_match { Color::Indexed(22) } else { Color::Reset };
 
-    let toggle = match &row.node {
+    let toggle = match node {
         JNode::Object { collapsed, .. } | JNode::Array { collapsed, .. } => {
             if *collapsed { "▶ " } else { "▼ " }
         }
         _ => "  ",
     };
-    let (icon, icon_col) = node_icon(&row.node);
+    let (icon, icon_col) = node_icon(node);
 
     let key_name = match (&row.key, row.index) {
         (Some(k), _) => k.clone(),
@@ -267,7 +268,7 @@ fn render_row(row: &FlatRow, selected: bool, is_match: bool, is_warning: bool, k
         (None, None) => "<root>".to_string(),
     };
 
-    let key_col = match &row.node {
+    let key_col = match node {
         JNode::Scalar(_) => Color::Cyan,
         _ => Color::White,
     };
@@ -280,10 +281,10 @@ fn render_row(row: &FlatRow, selected: bool, is_match: bool, is_warning: bool, k
     let name_trunc: String = key_name.chars().take(avail).collect();
     let post = format!(" {:<width$}", name_trunc, width = avail);
 
-    let type_str = node_type_label(&row.node);
+    let type_str = node_type_label(node);
     let type_cell = format!("{:<width$}", type_str.chars().take(type_w).collect::<String>(), width = type_w);
 
-    let (val_str, val_col) = node_value_display(&row.node);
+    let (val_str, val_col) = node_value_display(node);
     let val_trunc: String = val_str.chars().take(val_w).collect();
 
     Line::from(vec![

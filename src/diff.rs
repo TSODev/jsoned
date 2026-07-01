@@ -6,6 +6,7 @@
 
 use anyhow::{anyhow, Context, Result};
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::convert::parse_any;
 use crate::tree::{path_to_string, JKey, JNode, JPath, JScalar};
@@ -90,7 +91,7 @@ fn diff_node(
                         for (k, a_child) in ea.iter() {
                             seen.push(k);
                             let mut child_path = path.to_vec();
-                            child_path.push(JKey::Field(k.clone()));
+                            child_path.push(JKey::Field(Rc::from(k.as_str())));
                             let b_child = eb.get(k);
                             let child_status = diff_node(
                                 Some(a_child), b_child, depth + 1, Some(k.clone()), None, &child_path, out,
@@ -102,7 +103,7 @@ fn diff_node(
                                 continue;
                             }
                             let mut child_path = path.to_vec();
-                            child_path.push(JKey::Field(k.clone()));
+                            child_path.push(JKey::Field(Rc::from(k.as_str())));
                             let child_status = diff_node(
                                 None, Some(b_child), depth + 1, Some(k.clone()), None, &child_path, out,
                             );
@@ -187,7 +188,7 @@ fn push_one_sided(
         JNode::Object { entries, .. } => {
             for (k, child) in entries.iter() {
                 let mut child_path = path.to_vec();
-                child_path.push(JKey::Field(k.clone()));
+                child_path.push(JKey::Field(Rc::from(k.as_str())));
                 push_one_sided(child, status, depth + 1, Some(k.clone()), None, &child_path, out);
             }
         }

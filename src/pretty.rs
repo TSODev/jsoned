@@ -1,4 +1,5 @@
 use crate::tree::{JKey, JNode, JPath, JScalar};
+use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SegColor {
@@ -70,7 +71,7 @@ fn emit(
             let n = entries.len();
             for (i, (k, child)) in entries.iter().enumerate() {
                 let mut cp = pv.clone();
-                cp.push(JKey::Field(k.clone()));
+                cp.push(JKey::Field(Rc::from(k.as_str())));
                 emit(child, depth + 1, &cp, Some(k), i + 1 < n, out);
             }
 

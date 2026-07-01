@@ -1,4 +1,5 @@
 use crate::tree::{JKey, JNode, JPath};
+use std::rc::Rc;
 
 const MAX_DEPTH: usize = 20;
 
@@ -27,7 +28,7 @@ fn lint_node(node: &JNode, path: &[JKey], depth: usize, out: &mut Vec<LintWarnin
         JNode::Object { entries, .. } => {
             for (k, child) in entries {
                 let mut child_path = path.to_vec();
-                child_path.push(JKey::Field(k.clone()));
+                child_path.push(JKey::Field(Rc::from(k.as_str())));
                 if k.is_empty() {
                     out.push(LintWarning {
                         path: child_path.clone(),
