@@ -10,6 +10,8 @@ mod convert;
 mod pretty;
 mod lint;
 mod plugin;
+mod diff;
+mod diff_app;
 
 #[derive(Parser, Debug)]
 #[command(name = "jsoned", version, about = "Keyboard-driven TUI JSON viewer and editor")]
@@ -24,12 +26,28 @@ struct Cli {
     /// Output file for conversion (default: stdout)
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
+
+    /// Compare `file` against this second file (structural, key-path diff) — opens a read-only
+    /// diff TUI, or with --to text|json prints a headless diff report and exits
+    #[arg(long, value_name = "FILE")]
+    diff: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
     use std::io::{IsTerminal, Read};
 
     let cli = Cli::parse();
+
+    // Diff mode: jsoned a.json --diff b.json [--to text|json]
+    if let Some(ref file_b) = cli.diff {
+        let file_a = cli.file.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("--diff requires a file argument"))?;
+        return if let Some(ref fmt) = cli.to {
+            diff::diff_file_headless(file_a, file_b, fmt, cli.output.as_deref())
+        } else {
+            diff_app::run(file_a, file_b)
+        };
+    }
 
     // Headless conversion mode: jsoned input.yaml --to json
     if let Some(ref fmt) = cli.to {

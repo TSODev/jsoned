@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Diff mode — `jsoned a.json --diff b.json` opens a read-only, structural (key-path, not line-based) diff between two files, even across formats (JSON vs YAML vs TOML vs CSV); each side is parsed independently by its own extension
+- Diff row status: `Added` / `Removed` / `Changed` / `Unchanged`, shown with a leading glyph (`+`/`-`/`~`) and a background tint; container rows aggregate `Changed` from any differing descendant
+- Diff keybindings: `j`/`k` move, `]`/`n` and `[`/`N` jump to next/previous change, `o` toggles hiding unchanged rows, `q`/`Esc` quits — a separate, minimal read-only view (no edit/undo/search/save)
+- Headless diff: `jsoned a.json --diff b.json --to text` (`+`/`-`/`~` report) or `--to json` (machine-readable array of `{path, status, old, new}`, for scripts/CI); `--output` writes to a file instead of stdout
+- Array comparison in diff is index-aligned (no LCS/reorder-aware diff) — documented v1 limitation
+
 ## [0.4.0] — 2026-07-01
 
 ### Added

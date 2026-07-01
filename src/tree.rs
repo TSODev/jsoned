@@ -84,6 +84,13 @@ pub struct FlatRow {
     pub path: JPath,
 }
 
+pub fn path_to_string(path: &[JKey]) -> String {
+    path.iter().map(|k| match k {
+        JKey::Field(s) => s.clone(),
+        JKey::Index(i) => i.to_string(),
+    }).collect::<Vec<_>>().join(".")
+}
+
 pub fn get_node_at_path<'a>(root: &'a JNode, path: &[JKey]) -> Option<&'a JNode> {
     if path.is_empty() {
         return Some(root);

@@ -17,6 +17,8 @@
 - [Saving](#saving)
 - [Format conversion](#format-conversion)
   - [Headless](#headless)
+- [Diff mode](#diff-mode)
+  - [Headless diff](#headless-diff)
 - [Keybinding reference](#keybinding-reference)
 
 ---
@@ -223,6 +225,69 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 
 ---
 
+## Diff mode
+
+```sh
+jsoned a.json --diff b.json
+```
+
+Opens a separate, **read-only** view showing a **structural, key-path diff** between two files —
+not a line-based diff. Each row of the merged tree is tagged `Added` / `Removed` / `Changed` /
+`Unchanged`, with the status shown as a leading glyph and a background tint:
+
+| Glyph | Status | Meaning |
+|-------|--------|---------|
+| `+` | Added | present in the second file only |
+| `-` | Removed | present in the first file only |
+| `~` | Changed | present in both, value or type differs |
+| (none) | Unchanged | identical in both |
+
+A container row (Object/Array) is marked `Changed` if *any* descendant differs, even if the
+container itself wasn't added or removed. `a.json` and `b.json` can be different formats — each
+side is parsed independently by its own extension (`a.json --diff b.yaml` works).
+
+> **Array comparison is index-aligned, not reorder-aware** (no LCS/diff-of-sequences). Inserting
+> an element at the front of an array will show every later element as "changed" rather than as a
+> single insertion. This is a known v1 limitation.
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` or `↓` / `↑` | Move cursor |
+| `]` / `n` | Jump to next changed row |
+| `[` / `N` | Jump to previous changed row |
+| `o` | Toggle hiding `Unchanged` rows |
+| `q` / `Esc` | Quit |
+
+Diff mode has no editing, undo, search, or save — it's a dedicated read-only viewer, not a mode of
+the main editor.
+
+### Headless diff
+
+```sh
+jsoned a.json --diff b.json --to text            # +/-/~ report, one line per changed path
+jsoned a.json --diff b.json --to json             # machine-readable, for scripts/CI
+jsoned a.json --diff b.json --to json --output report.json
+```
+
+Unlike format-conversion `--to` (which accepts `json`/`yaml`/`toml`/`csv`), diff's `--to` only
+accepts `text` or `json` — anything else errors with a clear message. `Unchanged` rows are never
+included in headless output (the `text`/`json` reports only list actual differences).
+
+`--to text` format: `+ path: value`, `- path: value`, `~ path: old -> new` (plain ASCII arrow,
+not the Unicode one used in the TUI — scripting output shouldn't depend on terminal Unicode
+support).
+
+`--to json` format: an array of `{"path", "status", "old", "new"}` objects, e.g.:
+
+```json
+[
+  { "path": "b.c", "status": "changed", "old": "2", "new": "3" },
+  { "path": "e", "status": "added", "old": null, "new": "true" }
+]
+```
+
+---
+
 ## Keybinding reference
 
 ### Navigation
@@ -284,6 +349,19 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | Key | Action |
 |-----|--------|
 | `\|` | Open Plugins menu |
+
+### Diff mode
+
+These only apply when jsoned was launched with `--diff` — a separate, read-only view with its own
+keybindings (no overlap with the main editor's mode above):
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` or `↓` / `↑` | Move cursor |
+| `]` / `n` | Jump to next changed row |
+| `[` / `N` | Jump to previous changed row |
+| `o` | Toggle hiding unchanged rows |
+| `q` / `Esc` | Quit |
 
 ### View
 

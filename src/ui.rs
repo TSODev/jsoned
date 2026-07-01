@@ -8,9 +8,11 @@ use ratatui::{
 
 use crate::{
     app::{App, EditMode, EditPhase, EditState, PluginPhase, SaveAsPhase, EDIT_TYPES, SAVE_AS_FORMATS},
+    diff::{DiffRow, DiffStatus},
+    diff_app::DiffApp,
     plugin::registry as plugin_registry,
     pretty::{annotate, SegColor},
-    tree::{get_node_at_path, FlatRow, JKey, JNode, JScalar},
+    tree::{get_node_at_path, path_to_string, FlatRow, JKey, JNode, JScalar},
 };
 
 fn is_lint_path(app: &App, path: &[JKey]) -> bool {
@@ -684,7 +686,7 @@ fn render_save_dialog(f: &mut Frame, area: Rect) {
 fn render_status(f: &mut Frame, app: &App, area: Rect) {
     let modified = if app.modified { " [modified]" } else { "" };
     let cursor_path = app.flat.get(app.cursor).map(|r| r.path.clone()).unwrap_or_default();
-    let dot_path = build_dot_path(&cursor_path);
+    let dot_path = crate::tree::path_to_string(&cursor_path);
     let cursor_warning = lint_message_at(app, &cursor_path);
 
     // Line 1: search input OR filename · dot-path [· match X/N] [· N warnings]
@@ -793,10 +795,152 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(Paragraph::new(lines), area);
 }
 
-fn build_dot_path(path: &[JKey]) -> String {
-    path.iter().map(|k| match k {
-        JKey::Field(s) => s.clone(),
-        JKey::Index(i) => i.to_string(),
-    }).collect::<Vec<_>>().join(".")
+// ── Diff view: read-only structural diff between two files ──────────────────
+
+pub fn render_diff(f: &mut Frame, app: &DiffApp) {
+    let area = f.area();
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(2)])
+        .split(area);
+
+    render_diff_table(f, app, chunks[0]);
+    render_diff_status(f, app, chunks[1]);
+}
+
+fn render_diff_table(f: &mut Frame, app: &DiffApp, area: Rect) {
+    let title = format!(
+        " Diff: {} vs {}  [o: only changes = {}]",
+        app.file_a.display(),
+        app.file_b.display(),
+        if app.only_changes { "on" } else { "off" },
+    );
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::DarkGray))
+        .title(Span::styled(title, Style::default().fg(Color::DarkGray)));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.height < 2 {
+        return;
+    }
+
+    let w = inner.width as usize;
+    let key_w = (w * 33 / 100).max(15);
+    let type_w = 15usize;
+    let val_w = w.saturating_sub(key_w + type_w + 6);
+
+    let header_area = Rect::new(inner.x, inner.y, inner.width, 1);
+    let content_area = Rect::new(inner.x, inner.y + 1, inner.width, inner.height - 1);
+
+    let header = Line::from(vec![
+        Span::styled(
+            format!("  {:<width$}", "Key", width = key_w.saturating_sub(2)),
+            Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("  ", Style::default()),
+        Span::styled(
+            format!("{:<width$}", "Type", width = type_w),
+            Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled("  ", Style::default()),
+        Span::styled("Value", Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD)),
+    ]);
+    f.render_widget(Paragraph::new(header), header_area);
+
+    let vis = app.visible_indices();
+    let rows: Vec<Line> = vis
+        .iter()
+        .skip(app.scroll)
+        .take(content_area.height as usize)
+        .map(|&row_idx| render_diff_row(&app.rows[row_idx], row_idx == app.cursor, key_w, type_w, val_w))
+        .collect();
+    f.render_widget(Paragraph::new(rows), content_area);
+}
+
+fn render_diff_row(row: &DiffRow, selected: bool, key_w: usize, type_w: usize, val_w: usize) -> Line<'static> {
+    let status_bg = match row.status {
+        DiffStatus::Changed => Color::Indexed(94),
+        DiffStatus::Removed => Color::Indexed(52),
+        DiffStatus::Added => Color::Indexed(22),
+        DiffStatus::Unchanged => Color::Reset,
+    };
+    let bg = if selected { Color::Indexed(25) } else { status_bg };
+
+    let glyph = match row.status {
+        DiffStatus::Added => "+ ",
+        DiffStatus::Removed => "- ",
+        DiffStatus::Changed => "~ ",
+        DiffStatus::Unchanged => "  ",
+    };
+
+    let key_name = match (&row.key, row.index) {
+        (Some(k), _) => k.clone(),
+        (None, Some(i)) => format!("Item[{}]", i),
+        (None, None) => "<root>".to_string(),
+    };
+
+    let pre = format!("{}{}", "  ".repeat(row.depth), glyph);
+    let pre_len = pre.chars().count();
+    let avail = key_w.saturating_sub(pre_len + 1);
+    let name_trunc: String = key_name.chars().take(avail).collect();
+    let key_cell = format!(" {:<width$}", name_trunc, width = avail);
+
+    let type_cell = format!(
+        "{:<width$}",
+        row.type_label.chars().take(type_w).collect::<String>(),
+        width = type_w
+    );
+
+    let display_value = diff_display_value(row);
+    let val_trunc: String = display_value.chars().take(val_w).collect();
+
+    Line::from(vec![
+        Span::styled(pre, Style::default().fg(Color::White).bg(bg)),
+        Span::styled(key_cell, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD).bg(bg)),
+        Span::styled("  ", Style::default().bg(bg)),
+        Span::styled(type_cell, Style::default().fg(Color::DarkGray).bg(bg)),
+        Span::styled("  ", Style::default().bg(bg)),
+        Span::styled(val_trunc, Style::default().fg(Color::White).bg(bg)),
+    ])
+    .style(Style::default().bg(bg))
+}
+
+fn diff_display_value(row: &DiffRow) -> String {
+    match row.status {
+        DiffStatus::Changed => format!(
+            "{} → {}",
+            row.old_value.as_deref().unwrap_or(""),
+            row.new_value.as_deref().unwrap_or("")
+        ),
+        _ => row
+            .new_value
+            .clone()
+            .or_else(|| row.old_value.clone())
+            .unwrap_or_default(),
+    }
+}
+
+fn render_diff_status(f: &mut Frame, app: &DiffApp, area: Rect) {
+    let cur = app.rows.get(app.cursor);
+    let dot_path = cur.map(|r| path_to_string(&r.path)).unwrap_or_default();
+    let changed = app.rows.iter().filter(|r| r.status != DiffStatus::Unchanged).count();
+    let line1 = format!(
+        " {}  ·  {} change{}",
+        dot_path,
+        changed,
+        if changed == 1 { "" } else { "s" }
+    );
+    let hint = "  j/k: move  ]/n, [/N: next/prev change  o: toggle only-changes  q: quit";
+
+    let lines = vec![
+        Line::from(Span::styled(line1, Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            hint,
+            Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),
+        )),
+    ];
+    f.render_widget(Paragraph::new(lines), area);
 }
 

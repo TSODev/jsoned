@@ -35,6 +35,7 @@ Keyboard-driven TUI for viewing and editing JSON files — with full structural 
 - **Search** — `/` to search keys and values, `n`/`N` to navigate matches
 - **Structural lint** — automatic checks on load and after every edit (empty keys, excessive depth); warnings highlighted in orange; `Tab`/`Shift+Tab` to navigate; correcting a node clears its warning instantly
 - **Plugins** — `|` opens a Plugins menu to transform the selected node; ships with a `jq` plugin (bundled, no external `jq` binary needed)
+- **Diff** — `jsoned a.json --diff b.json` opens a read-only, structural (key-path) diff between two files, even across formats (JSON vs YAML vs TOML vs CSV); headless with `--to text|json`
 - **Save as** any supported format with `W` — format picker + filename editor in-TUI
 - **Pipe mode** — `cat file.json | jsoned` reads stdin; `s` writes JSON to stdout and exits
 - **Headless conversion** — `jsoned file.yaml --to json` with no TUI
@@ -71,6 +72,11 @@ TERAPI_JSON_EDITOR=jsoned terapi …  # drop-in external editor integration
 jsoned file.yaml --to json
 jsoned file.json --to yaml --output converted.yaml
 jsoned data.csv  --to json
+
+# Diff — structural, key-path comparison between two files (any supported formats)
+jsoned a.json --diff b.json                    # read-only diff TUI
+jsoned a.json --diff b.json --to text          # headless, +/-/~ report to stdout
+jsoned a.json --diff b.json --to json | jq .   # headless, machine-readable report
 ```
 
 Supported formats: `json`, `yaml`, `toml`, `csv`
@@ -106,6 +112,18 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | `Ctrl+E` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
+
+### Diff mode
+
+`jsoned a.json --diff b.json` opens a separate, read-only view with its own keybindings:
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` or `↓` / `↑` | Navigate |
+| `]` / `n` | Jump to next change |
+| `[` / `N` | Jump to previous change |
+| `o` | Toggle hiding unchanged rows |
+| `q` / `Esc` | Quit |
 
 ---
 
