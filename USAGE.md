@@ -70,6 +70,11 @@ The status bar shows two lines:
 - **Line 1** — `filename [modified]  ·  item.0.current.time` — file name and dot-notation path of the selected node (compatible with terapi's path format)
 - **Line 2** — contextual keybinding hints for the current mode
 
+On large documents (more than 5,000 flattened rows), Line 1 also shows a performance indicator —
+`174873 rows in 526.8ms` — the row count and time spent rebuilding the Explorer/Source panels
+after the most recent load or edit. It's hidden below that threshold to avoid clutter on typical
+small/medium documents; there's no toggle to force it on or off.
+
 ## Navigation
 
 `↑` / `↓` or `k` / `j` move the cursor one row at a time.  

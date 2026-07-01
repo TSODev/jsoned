@@ -15,6 +15,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diff keybindings: `j`/`k` move, `]`/`n` and `[`/`N` jump to next/previous change, `o` toggles hiding unchanged rows, `q`/`Esc` quits — a separate, minimal read-only view (no edit/undo/search/save)
 - Headless diff: `jsoned a.json --diff b.json --to text` (`+`/`-`/`~` report) or `--to json` (machine-readable array of `{path, status, old, new}`, for scripts/CI); `--output` writes to a file instead of stdout
 - Array comparison in diff is index-aligned (no LCS/reorder-aware diff) — documented v1 limitation
+- Performance indicator in the status bar — on documents over 5,000 flattened rows, Line 1 shows
+  `<N> rows in <T>ms`, the row count and time spent rebuilding the Explorer/Source panels after
+  the most recent load or edit; hidden below that threshold, no toggle
+
+### Performance
+- `flatten()` no longer deep-clones each row's full subtree (`FlatRow` looks up its node on demand
+  via `get_node_at_path` instead of owning a `JNode` clone) — removed an O(N×depth) cost that ran
+  on every edit
+- `JKey::Field` switched from `String` to `Rc<str>`, so cloning a `JPath` (done throughout
+  `flatten`/`annotate`/`lint`/`diff`) is a refcount bump instead of a string copy
+- Combined effect: ~2.1-2.4x faster document refresh after each edit at 10k-100k synthetic array
+  items (e.g. 458ms → 190ms at 10k items); does not yet make refreshes incremental — that's the
+  separate, still-unimplemented "lazy flatten" work (see ROADMAP)
 
 ## [0.4.0] — 2026-07-01
 

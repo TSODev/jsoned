@@ -714,10 +714,16 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
         } else {
             with_search
         };
+        let with_perf = match app.last_refresh {
+            Some((rows, ms)) if rows > crate::app::PERF_INDICATOR_THRESHOLD => {
+                format!("{}  ·  {} rows in {:.1}ms", with_lint, rows, ms)
+            }
+            _ => with_lint,
+        };
         if let Some(msg) = cursor_warning {
-            format!("{}  ⚠ {}", with_lint, msg)
+            format!("{}  ⚠ {}", with_perf, msg)
         } else {
-            with_lint
+            with_perf
         }
     };
 

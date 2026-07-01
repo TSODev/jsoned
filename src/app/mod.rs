@@ -102,7 +102,13 @@ pub struct App {
     pub lint_cursor: usize,
     // Plugins
     pub plugin: Option<PluginState>,
+    // Perf indicator — (row count, refresh duration in ms) from the most recent refresh_flat()
+    pub last_refresh: Option<(usize, f64)>,
 }
+
+/// Status bar only shows the perf indicator once the document is large enough for the
+/// timing to be meaningful — avoids visual noise for typical small/medium documents.
+pub const PERF_INDICATOR_THRESHOLD: usize = 5_000;
 
 impl App {
     pub fn new(file: Option<PathBuf>, stdin_content: Option<String>) -> Result<Self> {
@@ -121,9 +127,11 @@ impl App {
             (JNode::Object { entries: indexmap::IndexMap::new(), collapsed: false }, "new file".to_string())
         };
 
+        let t0 = std::time::Instant::now();
         let flat = flatten(&root);
         let annotated = annotate(&root);
         let lint_warnings = lint(&root);
+        let last_refresh = Some((flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
         Ok(Self {
             root, flat, annotated,
             cursor: 0, scroll: 0, left_scroll: 0,
@@ -138,13 +146,16 @@ impl App {
             stdout_mode,
             lint_warnings, lint_cursor: 0,
             plugin: None,
+            last_refresh,
         })
     }
 
     fn refresh_flat(&mut self) {
+        let t0 = std::time::Instant::now();
         self.flat = flatten(&self.root);
         self.annotated = annotate(&self.root);
         self.lint_warnings = lint(&self.root);
+        self.last_refresh = Some((self.flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
         if self.cursor >= self.flat.len() {
             self.cursor = self.flat.len().saturating_sub(1);
         }
