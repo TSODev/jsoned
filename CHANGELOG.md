@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-07-01
+
 ### Added
 - Plugin system — `|` opens a Plugins menu; pick a plugin, type an argument, `Enter` applies the result to the selected node (replaces it in place; `u` undoes). Internal, compiled-in registry (`Plugin` trait) — not a dynamic/external plugin loader
 - `jq` plugin — run a jq filter against the selected node; bundled via the pure-Rust `jaq` crate, so no external `jq` binary is required; multiple filter outputs collapse into a JSON array
