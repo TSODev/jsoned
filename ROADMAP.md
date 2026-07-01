@@ -120,6 +120,12 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       read-only, key-path diff TUI (not line-based); `--to text|json` for a headless report. See
       `src/diff.rs`/`src/diff_app.rs`. Array comparison is index-aligned, not LCS/reorder-aware —
       a known v1 limitation.
+- [x] **Redact on export** ✅ (shipped ahead of schedule) — mask sensitive values (API keys,
+      passwords, tokens) when saving a copy for someone else, without touching the document being
+      actively edited. Exact object-key match (whole value masked) plus inline `name=value`
+      matching inside string values via `regex` (catches secrets embedded as URL query
+      parameters). TUI: new step in the `W` (Save as) flow. Headless: `--redact key1,key2`
+      alongside `--to`. See `src/redact.rs`.
 - [ ] **More plugins** — codegen (struct/type generation for a target language), web import +
       prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
       need the `Plugin` trait to grow (non-`JNode` output, async work)
