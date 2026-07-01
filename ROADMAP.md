@@ -116,13 +116,21 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
 
 ## v0.9 — Advanced features
 
-- [ ] **Semantic diff** — compare two files side-by-side (`jsoned --diff a.json b.json`)
+- [x] **Structural diff** ✅ (shipped ahead of schedule) — `jsoned a.json --diff b.json` opens a
+      read-only, key-path diff TUI (not line-based); `--to text|json` for a headless report. See
+      `src/diff.rs`/`src/diff_app.rs`. Array comparison is index-aligned, not LCS/reorder-aware —
+      a known v1 limitation.
 - [ ] **More plugins** — codegen (struct/type generation for a target language), web import +
       prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
       need the `Plugin` trait to grow (non-`JNode` output, async work)
 - [ ] **Multi-tab** — open multiple files, `Tab` to switch
-- [ ] **Large file performance** — lazy flatten for documents > 10k nodes
-- [ ] **JSONLines** — stream-friendly format (one JSON object per line)
+- [ ] **Large file performance** — lazy/incremental flatten for documents > 10k nodes. Plan drafted
+      (patch `flatten()`/`annotate()` incrementally per edit instead of a full O(N) walk each time)
+      — not yet implemented.
+- [ ] **JSONLines** — stream-friendly format (one JSON object per line). **Blocked on "Large file
+      performance" above**: JSONL's typical use case is huge line-oriented logs/datasets — loading
+      one as a giant in-memory `JNode::Array` today would immediately re-expose the exact O(N)
+      per-edit cost the lazy-flatten work is fixing. Implement after lazy flatten lands, not before.
 
 ---
 
