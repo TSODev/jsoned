@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-02
+
 ### Added
 - JSONL support (read + write) — `jsoned data.jsonl` opens a JSONL file (one JSON value per line, blank lines skipped) as a JSON array, one element per line; editing then works exactly like any other array, no special-casing anywhere in the tree/flatten/annotate/lint/patch machinery. Export mirrors CSV's root handling: an array root writes one element per line, any other root (object or bare scalar) writes as a single line. Wired into headless `--to jsonl`/opening `.jsonl` files, TUI Save-As (`W` → JSONL, 5th format option), and `--diff` (works on `.jsonl` files like any other supported format)
 - Diff mode — `jsoned a.json --diff b.json` opens a read-only, structural (key-path, not line-based) diff between two files, even across formats (JSON vs YAML vs TOML vs CSV); each side is parsed independently by its own extension

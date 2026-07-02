@@ -1,9 +1,9 @@
 [package]
 name = "jsoned"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["Thierry Soulie <thierry.soulie@tsodev.fr>"]
-description = "Keyboard-driven TUI for viewing and editing JSON — with format conversion (YAML, TOML, CSV)"
+description = "Keyboard-driven TUI for viewing and editing JSON — with format conversion (YAML, TOML, CSV, JSONL)"
 license = "MIT"
 repository = "https://github.com/tsodev/jsoned"
 homepage = "https://github.com/tsodev/jsoned"
