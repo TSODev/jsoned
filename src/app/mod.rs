@@ -13,8 +13,8 @@ use crate::{
     event::{next_event, AppEvent},
     lint::{lint, LintWarning},
     plugin::{registry as plugin_registry, Plugin},
-    pretty::{annotate, AnnotatedLine},
-    tree::{flatten, get_node_at_path, get_node_at_path_mut, set_node_at_path, JNode, JKey, JPath, JScalar},
+    pretty::{annotate, patch_annotated, AnnotatedLine},
+    tree::{flatten, get_node_at_path, get_node_at_path_mut, patch_flat, set_node_at_path, JNode, JKey, JPath, JScalar, PatchSpan},
 };
 
 pub const EDIT_TYPES: [&str; 6] = ["Object", "Array", "String", "Number", "Boolean", "Null"];
@@ -163,6 +163,66 @@ impl App {
         }
         if self.lint_cursor >= self.lint_warnings.len() {
             self.lint_cursor = self.lint_warnings.len().saturating_sub(1);
+        }
+    }
+
+    /// Localized replacement for `refresh_flat()` used by every edit whose effect is confined to
+    /// one subtree — see the call-site table in the lazy-flatten plan for which `target` each
+    /// caller passes (its own path for a "self" patch, or its parent/container path for a
+    /// "parent" patch — `patch_flat`/`patch_annotated` don't need to know or care which kind it
+    /// is, only the caller does).
+    ///
+    /// `affects_annotated` should be `false` only for pure collapse-state toggles — `emit()`
+    /// never checks `is_collapsed()`, so patching `annotated` for a collapse-only change would be
+    /// wasted work producing byte-identical output.
+    ///
+    /// Returns the `PatchSpan` for `self.flat` (not `self.annotated`) so callers can bound a
+    /// subsequent path search to the freshly patched range instead of scanning the whole
+    /// document (see `set_cursor_to`). Returns `None` only if the defensive fallback path was
+    /// taken (should never happen for a `target` that actually exists in the tree/flat).
+    fn refresh_at(&mut self, target: &JPath, affects_annotated: bool) -> Option<PatchSpan> {
+        let t0 = std::time::Instant::now();
+
+        let flat_span = patch_flat(&mut self.flat, &self.root, target);
+        let ann_ok = if affects_annotated {
+            patch_annotated(&mut self.annotated, &self.root, target).is_some()
+        } else {
+            true
+        };
+
+        let result = if flat_span.is_some() && ann_ok {
+            flat_span
+        } else {
+            debug_assert!(false, "refresh_at: patch miss for target {:?}", target);
+            self.flat = flatten(&self.root);
+            self.annotated = annotate(&self.root);
+            None
+        };
+
+        self.lint_warnings = lint(&self.root); // v1: always full recompute, not yet patched
+        self.last_refresh = Some((self.flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
+
+        if self.cursor >= self.flat.len() {
+            self.cursor = self.flat.len().saturating_sub(1);
+        }
+        if self.lint_cursor >= self.lint_warnings.len() {
+            self.lint_cursor = self.lint_warnings.len().saturating_sub(1);
+        }
+        result
+    }
+
+    /// Bounds a path search to the freshly patched span instead of scanning the whole document —
+    /// replaces the `self.flat.iter().position(|r| r.path == np)` scans that used to run after
+    /// every structural edit.
+    fn set_cursor_to(&mut self, path: &JPath, hint: Option<PatchSpan>) {
+        let range = match hint {
+            Some(span) => span.start..span.new_end(),
+            None => 0..self.flat.len(),
+        };
+        if let Some(rows) = self.flat.get(range.clone()) {
+            if let Some(pos) = rows.iter().position(|r| r.path == *path) {
+                self.cursor = range.start + pos;
+            }
         }
     }
 
@@ -433,10 +493,8 @@ impl App {
                 let is_collapsed = node.is_collapsed();
                 if is_collapsed {
                     toggle_node_collapse(&mut self.root, &path);
-                    self.refresh_flat();
-                    if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
-                        self.cursor = pos;
-                    }
+                    let span = self.refresh_at(&path, false);
+                    self.set_cursor_to(&path, span);
                 }
                 self.edit = Some(EditState {
                     path,
@@ -507,7 +565,7 @@ impl App {
         match state.type_cursor {
             5 => {
                 set_node_at_path(&mut self.root, &state.path, JNode::Scalar(JScalar::Null));
-                self.refresh_flat();
+                self.refresh_at(&state.path, true);
                 self.modified = true;
             }
             tc => {
@@ -635,7 +693,7 @@ impl App {
             EditMode::Edit => {
                 self.push_undo();
                 set_node_at_path(&mut self.root, &state.path, new_node);
-                self.refresh_flat();
+                self.refresh_at(&state.path, true);
                 self.modified = true;
             }
             EditMode::AddChild => {
@@ -674,7 +732,7 @@ impl App {
             }
         }
 
-        self.refresh_flat();
+        self.refresh_at(&parent_path, true);
         self.modified = true;
     }
 
@@ -712,13 +770,11 @@ impl App {
             }
         }
 
-        self.refresh_flat();
+        let span = self.refresh_at(&parent_path, true);
         self.modified = true;
 
         if let Some(np) = new_path {
-            if let Some(pos) = self.flat.iter().position(|r| r.path == np) {
-                self.cursor = pos;
-            }
+            self.set_cursor_to(&np, span);
         }
     }
 
@@ -776,13 +832,11 @@ impl App {
             }
         }
 
-        self.refresh_flat();
+        let span = self.refresh_at(&parent_path, true);
         self.modified = true;
 
         if let Some(np) = new_path {
-            if let Some(pos) = self.flat.iter().position(|r| r.path == np) {
-                self.cursor = pos;
-            }
+            self.set_cursor_to(&np, span);
         }
     }
 
@@ -826,14 +880,12 @@ impl App {
 
         if new_last_key.is_none() { self.undo_stack.pop(); return; }
 
-        self.refresh_flat();
+        let span = self.refresh_at(&parent_path, true);
         self.modified = true;
 
         let mut new_path = parent_path;
         new_path.push(new_last_key.unwrap());
-        if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
-            self.cursor = pos;
-        }
+        self.set_cursor_to(&new_path, span);
     }
 
     fn insert_child(&mut self, container_path: &JPath, key: Option<&str>, new_node: JNode) {
@@ -863,13 +915,11 @@ impl App {
             }
         }
 
-        self.refresh_flat();
+        let span = self.refresh_at(container_path, true);
         self.modified = true;
 
         if let Some(np) = new_path {
-            if let Some(pos) = self.flat.iter().position(|r| r.path == np) {
-                self.cursor = pos;
-            }
+            self.set_cursor_to(&np, span);
         }
     }
 
@@ -900,13 +950,11 @@ impl App {
             }
         }
 
-        self.refresh_flat();
+        let span = self.refresh_at(parent_path, true);
         self.modified = true;
 
         if let Some(np) = new_path {
-            if let Some(pos) = self.flat.iter().position(|r| r.path == np) {
-                self.cursor = pos;
-            }
+            self.set_cursor_to(&np, span);
         }
     }
 
@@ -1090,7 +1138,7 @@ impl App {
     fn toggle_collapse(&mut self) {
         let path = self.current_path();
         toggle_node_collapse(&mut self.root, &path);
-        self.refresh_flat();
+        self.refresh_at(&path, false);
     }
 
     fn push_undo(&mut self) {
@@ -1279,7 +1327,7 @@ impl App {
             Ok(new_node) => {
                 self.push_undo();
                 set_node_at_path(&mut self.root, &path, new_node);
-                self.refresh_flat();
+                self.refresh_at(&path, true);
                 self.modified = true;
                 self.plugin = None;
                 self.status = format!("{} applied", plugin.name());
@@ -1328,13 +1376,11 @@ impl App {
                     entries.shift_insert(pos, new_key.clone(), wrapper);
                 }
             }
-            self.refresh_flat();
+            let span = self.refresh_at(&parent_path, true);
             self.modified = true;
             let mut new_path = parent_path;
             new_path.push(JKey::Field(Rc::from(new_key.as_str())));
-            if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
-                self.cursor = pos;
-            }
+            self.set_cursor_to(&new_path, span);
             return;
         }
 
@@ -1349,11 +1395,9 @@ impl App {
             }
         };
         set_node_at_path(&mut self.root, &path, wrapped);
-        self.refresh_flat();
+        let span = self.refresh_at(&path, true);
         self.modified = true;
-        if let Some(pos) = self.flat.iter().position(|r| r.path == path) {
-            self.cursor = pos;
-        }
+        self.set_cursor_to(&path, span);
     }
 
     fn start_rename(&mut self) {
@@ -1413,13 +1457,11 @@ impl App {
             let Some((_, val)) = entries.shift_remove_index(idx) else { return; };
             entries.shift_insert(idx, new_key.clone(), val);
         }
-        self.refresh_flat();
+        let span = self.refresh_at(&parent_path, true);
         self.modified = true;
         let mut new_path = parent_path;
         new_path.push(JKey::Field(Rc::from(new_key.as_str())));
-        if let Some(pos) = self.flat.iter().position(|r| r.path == new_path) {
-            self.cursor = pos;
-        }
+        self.set_cursor_to(&new_path, span);
     }
 
     fn sort_children(&mut self) {
@@ -1432,7 +1474,7 @@ impl App {
         if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &path) {
             entries.sort_keys();
         }
-        self.refresh_flat();
+        self.refresh_at(&path, true);
         self.modified = true;
     }
 
@@ -1441,7 +1483,7 @@ impl App {
         if let Some(node) = get_node_at_path_mut(&mut self.root, &path) {
             set_all_collapsed(node, false);
         }
-        self.refresh_flat();
+        self.refresh_at(&path, false);
     }
 
     fn collapse_all(&mut self) {
@@ -1449,7 +1491,7 @@ impl App {
         if let Some(node) = get_node_at_path_mut(&mut self.root, &path) {
             set_all_collapsed(node, true);
         }
-        self.refresh_flat();
+        self.refresh_at(&path, false);
     }
 
     fn lint_next(&mut self) {

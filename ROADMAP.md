@@ -130,13 +130,20 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
       need the `Plugin` trait to grow (non-`JNode` output, async work)
 - [ ] **Multi-tab** — open multiple files, `Tab` to switch
-- [ ] **Large file performance** — lazy/incremental flatten for documents > 10k nodes. Plan drafted
-      (patch `flatten()`/`annotate()` incrementally per edit instead of a full O(N) walk each time)
-      — not yet implemented.
-- [ ] **JSONLines** — stream-friendly format (one JSON object per line). **Blocked on "Large file
-      performance" above**: JSONL's typical use case is huge line-oriented logs/datasets — loading
-      one as a giant in-memory `JNode::Array` today would immediately re-expose the exact O(N)
-      per-edit cost the lazy-flatten work is fixing. Implement after lazy flatten lands, not before.
+- [x] **Large file performance** ✅ (shipped ahead of schedule) — most single-node edits (rename,
+      value edit, delete, add, move, paste, toggle collapse, wrap, sort, plugin run) patch only
+      the affected subtree's contiguous block in `Vec<FlatRow>`/`Vec<AnnotatedLine>` instead of a
+      full O(N) rebuild. Isolated micro-benchmark: ~60-130x faster than a full rebuild at
+      1k-100k items; in a real TUI session on a 20k-record file, a single edit dropped from
+      1275ms to ~157-174ms. See `tree::patch_flat`/`pretty::patch_annotated`/`App::refresh_at`.
+      **Caveat**: `lint()` still does a full O(N) walk on every edit (same pattern would apply,
+      not yet implemented) — it's now the dominant remaining per-edit cost. Initial file load is
+      still a full parse+flatten+annotate+lint, inherently O(N), same as any tool.
+- [ ] **JSONLines** — stream-friendly format (one JSON object per line). The per-edit cost concern
+      that blocked this is now mostly resolved (see "Large file performance" above), but initial
+      load of a huge line-oriented log/dataset is still an O(N) full parse — same cost any format
+      would pay for a file that size, not JSONL-specific. Revisit scope/priority now that editing
+      itself is fast; no longer strictly gated on lazy flatten.
 
 ---
 

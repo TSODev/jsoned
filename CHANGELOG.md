@@ -35,8 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `JKey::Field` switched from `String` to `Rc<str>`, so cloning a `JPath` (done throughout
   `flatten`/`annotate`/`lint`/`diff`) is a refcount bump instead of a string copy
 - Combined effect: ~2.1-2.4x faster document refresh after each edit at 10k-100k synthetic array
-  items (e.g. 458ms → 190ms at 10k items); does not yet make refreshes incremental — that's the
-  separate, still-unimplemented "lazy flatten" work (see ROADMAP)
+  items (e.g. 458ms → 190ms at 10k items)
+- Lazy/incremental flatten — most single-node edits (rename, value edit, delete, add, move,
+  paste, toggle collapse, wrap, sort, plugin run) now patch only the affected subtree's
+  contiguous block in `Vec<FlatRow>`/`Vec<AnnotatedLine>` (`tree::patch_flat`,
+  `pretty::patch_annotated`, `App::refresh_at`) instead of rebuilding the whole document on every
+  keystroke. Isolated micro-benchmark: ~60-130x faster than a full rebuild at 1k-100k items. In a
+  real TUI session on a 20k-record / ~350k-row file, a single edit dropped from 1275ms (initial
+  full load) to ~157-174ms. `undo`/`redo`/jump-to-lint-warning still do a full rebuild (no single
+  changed path exists for those); `lint()` also still runs in full on every edit — the same
+  contiguous-block pattern applies there too but isn't implemented yet, so it's now the dominant
+  remaining cost per edit
 
 ## [0.4.0] — 2026-07-01
 
