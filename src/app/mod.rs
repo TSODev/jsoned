@@ -1163,9 +1163,15 @@ impl App {
 
     fn undo(&mut self) {
         if let Some(entry) = self.undo_stack.pop() {
+            // Timed from here, not just inside refresh_at: the redo-stack snapshot clone below
+            // is a real, currently-unoptimized O(N) cost (full JNode::clone(), pre-dating this
+            // session's patch work) that refresh_at's own internal timer can't see — without
+            // this, last_refresh would understate undo's true cost on large documents.
+            let t0 = std::time::Instant::now();
             self.redo_stack.push(UndoEntry { target: entry.target.clone(), root: self.root.clone() });
             self.root = entry.root;
             self.refresh_at(&entry.target, true);
+            self.last_refresh = Some((self.flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
             self.modified = true;
             self.status = format!("undo · {} left", self.undo_stack.len());
         } else {
@@ -1175,9 +1181,11 @@ impl App {
 
     fn redo(&mut self) {
         if let Some(entry) = self.redo_stack.pop() {
+            let t0 = std::time::Instant::now(); // see undo()'s comment on why this wraps the clone too
             self.undo_stack.push(UndoEntry { target: entry.target.clone(), root: self.root.clone() });
             self.root = entry.root;
             self.refresh_at(&entry.target, true);
+            self.last_refresh = Some((self.flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
             self.modified = true;
             self.status = format!("redo · {} forward", self.redo_stack.len());
         } else {
@@ -1886,5 +1894,69 @@ mod undo_redo_tests {
         assert_eq!(app.status, "nothing to undo");
         app.redo();
         assert_eq!(app.status, "nothing to redo");
+    }
+}
+
+/// Permanent, reproducible benchmark for `undo()`'s patched cost vs. a full-rebuild-equivalent
+/// (`refresh_flat()`), measured directly on the same `App` state right after. Lives here (not in
+/// `src/bench.rs`) because `push_undo`/`refresh_at`/`refresh_flat`/`undo` are private to `App` —
+/// only accessible from within this module or its descendants, same reasoning as
+/// `undo_redo_tests` above. See BENCHMARK.md for methodology and reference results.
+///
+/// Run: `cargo test --release app::bench -- --ignored --nocapture`
+#[cfg(test)]
+mod bench {
+    use super::*;
+    use std::time::Instant;
+
+    fn synthetic(items: usize) -> serde_json::Value {
+        let arr: Vec<serde_json::Value> = (0..items)
+            .map(|i| {
+                serde_json::json!({
+                    "id": i,
+                    "name": format!("item-{}", i),
+                    "active": i % 2 == 0,
+                    "score": i as f64 * 1.5,
+                    "tags": ["a", "b", "c"],
+                    "meta": { "created": "2026-07-02", "owner": "svc" },
+                    "note": "some representative string payload for a field",
+                    "count": i * 3,
+                })
+            })
+            .collect();
+        serde_json::Value::Array(arr)
+    }
+
+    #[test]
+    #[ignore]
+    fn bench_undo_patched_vs_full_rebuild() {
+        println!(
+            "{:>7}  {:>16}  {:>22}  {:>8}",
+            "items", "undo (patched)", "full_rebuild_equiv", "speedup"
+        );
+        for &items in &[1_000usize, 10_000, 50_000, 100_000] {
+            let mut app = App::new(None, Some(synthetic(items).to_string())).unwrap();
+            let target: JPath = vec![JKey::Index(items - 1), JKey::Field(Rc::from("name"))];
+
+            app.push_undo(&target);
+            set_node_at_path(&mut app.root, &target, JNode::Scalar(JScalar::String("edited".into())));
+            app.refresh_at(&target, true);
+
+            let t0 = Instant::now();
+            app.undo();
+            let patched_ms = t0.elapsed().as_secs_f64() * 1000.0;
+
+            // What a full-rebuild undo would have cost, measured directly on the same document
+            // right after — the fairest possible A/B comparison (same data, same machine, back
+            // to back).
+            let t1 = Instant::now();
+            app.refresh_flat();
+            let full_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+            println!(
+                "{:>7}  {:>14.3}ms  {:>20.2}ms  {:>7.0}x",
+                items, patched_ms, full_ms, full_ms / patched_ms.max(0.001)
+            );
+        }
     }
 }

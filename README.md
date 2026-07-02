@@ -48,7 +48,8 @@ two different formats (`a.json --diff b.yaml`).
 - Dot-path indicator (`steps.0.extracted`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
 
-See [USAGE.md](USAGE.md) for the full reference. See [What's New](CHANGELOG.md) for the release history.
+See [USAGE.md](USAGE.md) for the full reference, [What's New](CHANGELOG.md) for the release
+history, and [BENCHMARK.md](BENCHMARK.md) for reproducible performance numbers on large files.
 
 ---
 

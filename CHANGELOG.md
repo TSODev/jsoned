@@ -58,10 +58,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   confined to that same subtree in either direction. `undo_stack`/`redo_stack` now carry that
   target alongside each `JNode` snapshot (`UndoEntry`), and `undo()`/`redo()` call
   `refresh_at(&entry.target, true)` instead of a full rebuild — reusing the same patch machinery,
-  no new patching logic. On a 50k-record / ~875k-row file, `undo` dropped from ~3056ms (full
-  rebuild) to ~28ms; `redo` likewise. `jump_to_lint`/`expand_ancestors` remain unpatched (noted
-  as a possible future improvement, lower priority — rare action, and can flip multiple
-  non-contiguous ancestors' collapse state in one call, so there's no single obvious target)
+  no new patching logic. **Caveat found while building a reproducible benchmark for this (see
+  BENCHMARK.md)**: `undo`/`redo` still do one full `JNode::clone()` of the whole tree to populate
+  the *other* stack (a pre-existing cost, not something this session's patch work touches) —
+  on a 50k-record / ~875k-row file this clone dominates at scale, so the true end-to-end `undo`
+  cost is ~6-7x faster than a full rebuild (not the ~100x seen in the pure flatten/annotate/lint
+  patches, which do no tree-cloning at all). The status bar's timer was initially only wrapping
+  the `refresh_at` portion (~28ms, understating the real cost) — fixed to time the whole
+  `undo`/`redo` call including the clone (~460-480ms at 50k records near the end of the
+  document). `jump_to_lint`/`expand_ancestors` remain unpatched (noted as a possible future
+  improvement, lower priority — rare action, and can flip multiple non-contiguous ancestors'
+  collapse state in one call, so there's no single obvious target)
 
 ## [0.4.0] — 2026-07-01
 

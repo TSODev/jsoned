@@ -13,6 +13,8 @@ mod plugin;
 mod diff;
 mod diff_app;
 mod redact;
+#[cfg(test)]
+mod bench;
 
 #[derive(Parser, Debug)]
 #[command(name = "jsoned", version, about = "Keyboard-driven TUI JSON viewer and editor")]

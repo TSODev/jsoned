@@ -138,9 +138,13 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       sparse — pre-order DFS still guarantees contiguity) plus `undo`/`redo` (`UndoEntry` carries
       the same target path each edit already knew at push time, reused symmetrically in both
       directions). In a real TUI session on a 50k-record / ~875k-row file: a single value edit
-      near the end of the document ~28-48ms, `undo`/`redo` ~28ms (down from ~3056ms full rebuild).
-      See `App::refresh_at`. Initial file load is still a full parse+flatten+annotate+lint,
-      inherently O(N), same as any tool. `jump_to_lint`/`expand_ancestors` remain unpatched — can
+      near the end of the document ~28-48ms. `undo`/`redo` still do one full `JNode::clone()` of
+      the tree for the other stack (pre-existing cost, not part of this session's patch work) —
+      dominates at scale, so `undo`/`redo` land at ~6-7x faster than a full rebuild rather than
+      the ~100x+ seen in the pure flatten/annotate/lint patches (~460-480ms vs ~2.6s full
+      rebuild at 50k records). See `App::refresh_at`, `BENCHMARK.md`. Initial file load is still
+      a full parse+flatten+annotate+lint, inherently O(N), same as any tool.
+      `jump_to_lint`/`expand_ancestors` remain unpatched — can
       flip multiple non-contiguous ancestors' collapse state in one call, no single obvious
       target; noted as a possible future improvement, low priority (rare navigation action).
 - [ ] **JSONLines** — stream-friendly format (one JSON object per line). The per-edit cost concern
