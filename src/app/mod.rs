@@ -11,7 +11,7 @@ use std::rc::Rc;
 use crate::{
     convert::parse_any,
     event::{next_event, AppEvent},
-    lint::{lint, LintWarning},
+    lint::{lint, patch_lint, LintWarning},
     plugin::{registry as plugin_registry, Plugin},
     pretty::{annotate, patch_annotated, AnnotatedLine},
     tree::{flatten, get_node_at_path, get_node_at_path_mut, patch_flat, set_node_at_path, JNode, JKey, JPath, JScalar, PatchSpan},
@@ -199,7 +199,11 @@ impl App {
             None
         };
 
-        self.lint_warnings = lint(&self.root); // v1: always full recompute, not yet patched
+        if !patch_lint(&mut self.lint_warnings, &self.root, target) {
+            // Rare fallback: a new warning appeared in a subtree that previously had none (see
+            // lint::patch_lint's doc comment) — only case patch_lint can't handle incrementally.
+            self.lint_warnings = lint(&self.root);
+        }
         self.last_refresh = Some((self.flat.len(), t0.elapsed().as_secs_f64() * 1000.0));
 
         if self.cursor >= self.flat.len() {

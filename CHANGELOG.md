@@ -40,12 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   paste, toggle collapse, wrap, sort, plugin run) now patch only the affected subtree's
   contiguous block in `Vec<FlatRow>`/`Vec<AnnotatedLine>` (`tree::patch_flat`,
   `pretty::patch_annotated`, `App::refresh_at`) instead of rebuilding the whole document on every
-  keystroke. Isolated micro-benchmark: ~60-130x faster than a full rebuild at 1k-100k items. In a
-  real TUI session on a 20k-record / ~350k-row file, a single edit dropped from 1275ms (initial
-  full load) to ~157-174ms. `undo`/`redo`/jump-to-lint-warning still do a full rebuild (no single
-  changed path exists for those); `lint()` also still runs in full on every edit — the same
-  contiguous-block pattern applies there too but isn't implemented yet, so it's now the dominant
-  remaining cost per edit
+  keystroke. Isolated micro-benchmark: ~60-130x faster than a full rebuild at 1k-100k items.
+  `undo`/`redo`/jump-to-lint-warning still do a full rebuild (no single changed path exists for
+  those)
+- Lazy/incremental lint — `lint()` gets the same contiguous-block patch treatment
+  (`lint::patch_lint`), despite `lint_warnings` being a *sparse* list (only violating nodes
+  appear, not every node): the pre-order DFS traversal still guarantees a subtree's warnings land
+  in one contiguous run. Falls back to a full `lint()` only in the rare case where an edit
+  introduces a brand-new warning in a subtree that previously had none (documented, not silently
+  approximated). This was the dominant remaining per-edit cost after the flatten/annotate patch
+  above — combined effect in a real TUI session on a 20k-record / ~350k-row file: a single value
+  edit went from 1375ms (initial full load) to ~0.1ms; a delete (touching more of the tree) to
+  ~14ms
 
 ## [0.4.0] — 2026-07-01
 

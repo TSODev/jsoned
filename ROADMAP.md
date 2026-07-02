@@ -132,13 +132,14 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
 - [ ] **Multi-tab** — open multiple files, `Tab` to switch
 - [x] **Large file performance** ✅ (shipped ahead of schedule) — most single-node edits (rename,
       value edit, delete, add, move, paste, toggle collapse, wrap, sort, plugin run) patch only
-      the affected subtree's contiguous block in `Vec<FlatRow>`/`Vec<AnnotatedLine>` instead of a
-      full O(N) rebuild. Isolated micro-benchmark: ~60-130x faster than a full rebuild at
-      1k-100k items; in a real TUI session on a 20k-record file, a single edit dropped from
-      1275ms to ~157-174ms. See `tree::patch_flat`/`pretty::patch_annotated`/`App::refresh_at`.
-      **Caveat**: `lint()` still does a full O(N) walk on every edit (same pattern would apply,
-      not yet implemented) — it's now the dominant remaining per-edit cost. Initial file load is
-      still a full parse+flatten+annotate+lint, inherently O(N), same as any tool.
+      the affected subtree's contiguous block instead of a full O(N) rebuild — applied to all
+      three per-edit passes: `Vec<FlatRow>` (`tree::patch_flat`), `Vec<AnnotatedLine>`
+      (`pretty::patch_annotated`), and `Vec<LintWarning>` (`lint::patch_lint`, despite that list
+      being sparse — the pre-order DFS traversal still guarantees contiguity). In a real TUI
+      session on a 20k-record / ~350k-row file, a single value edit dropped from 1375ms (initial
+      full load) to ~0.1ms; a delete to ~14ms. See `App::refresh_at`. Initial file load is still a
+      full parse+flatten+annotate+lint, inherently O(N), same as any tool. `undo`/`redo`/
+      jump-to-lint-warning still do a full rebuild (no single changed path exists for those).
 - [ ] **JSONLines** — stream-friendly format (one JSON object per line). The per-edit cost concern
       that blocked this is now mostly resolved (see "Large file performance" above), but initial
       load of a huge line-oriented log/dataset is still an O(N) full parse — same cost any format
