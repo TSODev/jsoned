@@ -558,7 +558,8 @@ fn render_preview_normal(f: &mut Frame, app: &App, inner: Rect) {
 
 fn render_save_as_format_picker(f: &mut Frame, area: Rect, format_cursor: usize) {
     let w = 30u16;
-    let h = 8u16;
+    // 2 border rows + one line per format + 1 blank + 1 hint line
+    let h = 2 + SAVE_AS_FORMATS.len() as u16 + 2;
     let x = area.x + area.width.saturating_sub(w) / 2;
     let y = area.y + area.height.saturating_sub(h) / 2;
     let popup = Rect::new(x, y, w.min(area.width), h.min(area.height));

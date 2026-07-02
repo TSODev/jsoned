@@ -19,10 +19,10 @@ mod bench;
 #[derive(Parser, Debug)]
 #[command(name = "jsoned", version, about = "Keyboard-driven TUI JSON viewer and editor")]
 struct Cli {
-    /// File to open (JSON, YAML, TOML, CSV)
+    /// File to open (JSON, YAML, TOML, CSV, JSONL)
     file: Option<PathBuf>,
 
-    /// Convert to format and exit (json, yaml, toml, csv) — no TUI
+    /// Convert to format and exit (json, yaml, toml, csv, jsonl) — no TUI
     #[arg(long, value_name = "FORMAT")]
     to: Option<String>,
 

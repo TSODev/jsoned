@@ -147,11 +147,18 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       `jump_to_lint`/`expand_ancestors` remain unpatched — can
       flip multiple non-contiguous ancestors' collapse state in one call, no single obvious
       target; noted as a possible future improvement, low priority (rare navigation action).
-- [ ] **JSONLines** — stream-friendly format (one JSON object per line). The per-edit cost concern
-      that blocked this is now mostly resolved (see "Large file performance" above), but initial
-      load of a huge line-oriented log/dataset is still an O(N) full parse — same cost any format
-      would pay for a file that size, not JSONL-specific. Revisit scope/priority now that editing
-      itself is fast; no longer strictly gated on lazy flatten.
+- [x] **JSONLines** ✅ — read + write, via `parse_any`/`serialize_to`'s `"jsonl"` hint in
+      `convert.rs`. One JSON value per line (blank lines skipped) parses to a single JSON array,
+      one element per line — mirrors CSV import's "array of rows" shape, so editing needs zero
+      special-casing anywhere in the tree/flatten/annotate/lint/patch machinery, it's just an
+      array. Export mirrors `json_to_csv`'s root-handling pattern: an array root writes one
+      element per line, any other root (object or bare scalar) writes as a single line — unlike
+      CSV, JSONL doesn't require object-shaped rows, so there's no error case. Wired into: opening
+      `.jsonl` files directly, headless `--to jsonl`, TUI Save-As (`W`, now 5 formats), and
+      `--diff` (works on `.jsonl` like any other format). Initial load of a huge line-oriented
+      file is still an O(N) full parse — same cost any format pays for a file that size, not
+      JSONL-specific; this was the per-edit cost concern that originally deferred this item, and
+      it's resolved by the lazy-flatten work above.
 
 ---
 

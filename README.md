@@ -6,7 +6,7 @@
 
 **`jless`, but you can actually edit things.**
 
-Keyboard-driven TUI for viewing and editing JSON files — with full structural editing, undo/redo, search, and format conversion between JSON, YAML, TOML, and CSV.
+Keyboard-driven TUI for viewing and editing JSON files — with full structural editing, undo/redo, search, and format conversion between JSON, YAML, TOML, CSV, and JSONL.
 
 ![jsoned screenshot](https://raw.githubusercontent.com/TSODev/jsoned/main/assets/screenshot.png)
 
@@ -84,9 +84,14 @@ jsoned data.csv  --to json
 jsoned a.json --diff b.json                    # read-only diff TUI
 jsoned a.json --diff b.json --to text          # headless, +/-/~ report to stdout
 jsoned a.json --diff b.json --to json | jq .   # headless, machine-readable report
+
+# JSONL — one JSON value per line, opens as an array (each line = one element)
+jsoned data.jsonl              # edit like any array
+jsoned data.jsonl --to json    # convert to a single JSON array
+jsoned data.json --to jsonl    # array → one line per element; non-array root → single line
 ```
 
-Supported formats: `json`, `yaml`, `toml`, `csv`
+Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 
 ---
 
@@ -142,6 +147,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`
 | YAML | ✓ | ✓ | |
 | TOML | ✓ | ✓ | `null` values not supported by TOML |
 | CSV | ✓ | ✓ | Export: dot-notation flatten + 1-level explosion; root can be object or array |
+| JSONL | ✓ | ✓ | One JSON value per line ↔ a single JSON array; a non-array root exports as one line |
 
 ---
 

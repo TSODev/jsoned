@@ -37,6 +37,7 @@ jsoned file.json       # JSON
 jsoned file.yaml       # YAML
 jsoned file.toml       # TOML
 jsoned data.csv        # CSV → JSON array of objects
+jsoned data.jsonl      # JSONL → JSON array, one element per line
 jsoned                 # start with an empty object
 
 # Stdin / stdout pipe mode
@@ -251,16 +252,18 @@ jsoned input.yaml --to json
 jsoned input.json --to yaml
 jsoned input.json --to toml
 jsoned data.csv   --to json
+jsoned data.jsonl --to json
 
 # write to file
 jsoned input.yaml --to json --output output.json
 ```
 
-Supported formats: `json`, `yaml`, `toml`, `csv`
+Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 
 > **TOML** — `null` values are not supported; the conversion will error if the document contains nulls.  
 > **CSV export** — accepts a root object or array of objects. Nested objects are flattened with dot-notation keys (`address.city`). The first array-of-objects field at each level is exploded into multiple rows (parent fields repeated). Arrays of scalars are joined with `;`. Deeper arrays of objects are serialized as JSON strings.  
-> **CSV import** — produces an array of objects (all values as strings).
+> **CSV import** — produces an array of objects (all values as strings).  
+> **JSONL import** — one JSON value per line (blank lines skipped) becomes a single JSON array, one element per line; editing then works exactly like any other array. **JSONL export** — an array root writes one element per line; any other root (object or bare scalar) writes as a single line.
 
 ---
 
@@ -308,9 +311,9 @@ jsoned a.json --diff b.json --to json             # machine-readable, for script
 jsoned a.json --diff b.json --to json --output report.json
 ```
 
-Unlike format-conversion `--to` (which accepts `json`/`yaml`/`toml`/`csv`), diff's `--to` only
-accepts `text` or `json` — anything else errors with a clear message. `Unchanged` rows are never
-included in headless output (the `text`/`json` reports only list actual differences).
+Unlike format-conversion `--to` (which accepts `json`/`yaml`/`toml`/`csv`/`jsonl`), diff's `--to`
+only accepts `text` or `json` — anything else errors with a clear message. `Unchanged` rows are
+never included in headless output (the `text`/`json` reports only list actual differences).
 
 `--to text` format: `+ path: value`, `- path: value`, `~ path: old -> new` (plain ASCII arrow,
 not the Unicode one used in the TUI — scripting output shouldn't depend on terminal Unicode

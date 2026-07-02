@@ -19,8 +19,8 @@ use crate::{
 
 pub const EDIT_TYPES: [&str; 6] = ["Object", "Array", "String", "Number", "Boolean", "Null"];
 
-pub const SAVE_AS_FORMATS: [&str; 4] = ["JSON", "YAML", "TOML", "CSV"];
-pub const SAVE_AS_EXTS:    [&str; 4] = ["json", "yaml", "toml", "csv"];
+pub const SAVE_AS_FORMATS: [&str; 5] = ["JSON", "YAML", "TOML", "CSV", "JSONL"];
+pub const SAVE_AS_EXTS:    [&str; 5] = ["json", "yaml", "toml", "csv", "jsonl"];
 
 pub enum SaveAsPhase {
     FormatPick,
@@ -1028,7 +1028,7 @@ impl App {
             0 => match key.code {
                 Esc => { self.save_as = None; }
                 Up   => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = s.format_cursor.saturating_sub(1); } }
-                Down => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = (s.format_cursor + 1).min(3); } }
+                Down => { if let Some(s) = self.save_as.as_mut() { s.format_cursor = (s.format_cursor + 1).min(SAVE_AS_FORMATS.len() - 1); } }
                 Enter => self.confirm_save_as_format(),
                 _ => {}
             },

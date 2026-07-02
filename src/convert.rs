@@ -31,6 +31,7 @@ pub fn parse_any(src: &str, hint: &str) -> Result<serde_json::Value> {
             Ok(j)
         }
         "csv" => csv_to_json(src),
+        "jsonl" => jsonl_to_json(src),
         _ => serde_json::from_str(src).context("invalid JSON"),
     }
 }
@@ -44,8 +45,35 @@ pub fn serialize_to(value: &serde_json::Value, fmt: &str) -> Result<String> {
             toml::to_string_pretty(&t).context("TOML serialization failed")
         }
         "csv" => json_to_csv(value),
-        _ => Err(anyhow!("unsupported format: {} (supported: json, yaml, toml, csv)", fmt)),
+        "jsonl" => json_to_jsonl(value),
+        _ => Err(anyhow!("unsupported format: {} (supported: json, yaml, toml, csv, jsonl)", fmt)),
     }
+}
+
+/// One JSON value per line → a single JSON array (one element per non-empty line). Editing then
+/// works exactly like any other array — the tree/flatten/annotate/lint/patch machinery has no
+/// notion of "origin format", the same way a CSV import ends up as an array of row objects.
+fn jsonl_to_json(src: &str) -> Result<serde_json::Value> {
+    let values: Result<Vec<serde_json::Value>> = src
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).context("invalid JSON on a JSONL line"))
+        .collect();
+    Ok(serde_json::Value::Array(values?))
+}
+
+/// Mirrors `json_to_csv`'s root handling: an Array's elements each become their own line; any
+/// other root (Object, or a bare scalar) becomes a single line — the whole document is 1-line
+/// JSONL, which round-trips cleanly through `jsonl_to_json` (unlike CSV, JSONL doesn't require
+/// object-shaped rows, so there's no error case here).
+fn json_to_jsonl(value: &serde_json::Value) -> Result<String> {
+    let lines: Result<Vec<String>> = match value {
+        serde_json::Value::Array(arr) => arr.iter().map(|v| Ok(serde_json::to_string(v)?)).collect(),
+        other => Ok(vec![serde_json::to_string(other)?]),
+    };
+    let mut out = lines?.join("\n");
+    out.push('\n');
+    Ok(out)
 }
 
 fn csv_to_json(src: &str) -> Result<serde_json::Value> {
@@ -217,5 +245,73 @@ fn json_to_toml(v: &serde_json::Value) -> Result<toml::Value> {
                 .collect();
             Ok(toml::Value::Table(table?))
         }
+    }
+}
+
+#[cfg(test)]
+mod jsonl_tests {
+    use super::*;
+
+    #[test]
+    fn array_root_round_trips_one_line_per_element() {
+        let src = "{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n";
+        let value = jsonl_to_json(src).unwrap();
+        assert_eq!(value, serde_json::json!([{"a": 1}, {"a": 2}, {"a": 3}]));
+
+        let out = json_to_jsonl(&value).unwrap();
+        assert_eq!(out, "{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n");
+    }
+
+    #[test]
+    fn blank_lines_are_skipped_on_parse() {
+        let src = "{\"a\":1}\n\n   \n{\"a\":2}\n";
+        let value = jsonl_to_json(src).unwrap();
+        assert_eq!(value, serde_json::json!([{"a": 1}, {"a": 2}]));
+    }
+
+    #[test]
+    fn invalid_line_is_an_error() {
+        let src = "{\"a\":1}\nnot json\n";
+        assert!(jsonl_to_json(src).is_err());
+    }
+
+    #[test]
+    fn object_root_becomes_a_single_line() {
+        let value = serde_json::json!({"a": 1, "b": 2});
+        let out = json_to_jsonl(&value).unwrap();
+        assert_eq!(out, "{\"a\":1,\"b\":2}\n");
+    }
+
+    #[test]
+    fn scalar_root_becomes_a_single_line() {
+        let value = serde_json::json!(42);
+        let out = json_to_jsonl(&value).unwrap();
+        assert_eq!(out, "42\n");
+    }
+
+    #[test]
+    fn empty_array_round_trips_to_empty_output() {
+        let value = serde_json::json!([]);
+        let out = json_to_jsonl(&value).unwrap();
+        assert_eq!(out, "\n");
+        // and back: an empty file has no non-empty lines, so it parses to an empty array
+        assert_eq!(jsonl_to_json("").unwrap(), serde_json::json!([]));
+    }
+
+    #[test]
+    fn parse_any_and_serialize_to_dispatch_to_jsonl() {
+        let value = parse_any("{\"a\":1}\n{\"a\":2}\n", "jsonl").unwrap();
+        assert_eq!(value, serde_json::json!([{"a": 1}, {"a": 2}]));
+        let out = serialize_to(&value, "jsonl").unwrap();
+        assert_eq!(out, "{\"a\":1}\n{\"a\":2}\n");
+    }
+
+    #[test]
+    fn array_of_mixed_scalar_and_object_lines_round_trips() {
+        let src = "1\n\"two\"\ntrue\n{\"k\":\"v\"}\n";
+        let value = jsonl_to_json(src).unwrap();
+        assert_eq!(value, serde_json::json!([1, "two", true, {"k": "v"}]));
+        let out = json_to_jsonl(&value).unwrap();
+        assert_eq!(out, src);
     }
 }

@@ -127,9 +127,10 @@ cargo run --release --example json_perf_gen -- --count 50000 --format json --out
 jsoned big.json
 ```
 
-`--format json` is required — jsoned can't open `.jsonl` yet (see ROADMAP.md). Use jsoned's own
-status bar performance indicator (visible automatically above 5,000 rows) to watch timing live
-while editing.
+`--format json` produces a single JSON array (opens directly, no conversion needed); `--format
+jsonl` also works now that jsoned reads `.jsonl` — see USAGE.md. Use jsoned's own status bar
+performance indicator (visible automatically above 5,000 rows) to watch timing live while
+editing.
 
 ## What's not covered here
 
