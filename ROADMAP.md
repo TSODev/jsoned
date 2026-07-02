@@ -131,15 +131,18 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       need the `Plugin` trait to grow (non-`JNode` output, async work)
 - [ ] **Multi-tab** — open multiple files, `Tab` to switch
 - [x] **Large file performance** ✅ (shipped ahead of schedule) — most single-node edits (rename,
-      value edit, delete, add, move, paste, toggle collapse, wrap, sort, plugin run) patch only
-      the affected subtree's contiguous block instead of a full O(N) rebuild — applied to all
-      three per-edit passes: `Vec<FlatRow>` (`tree::patch_flat`), `Vec<AnnotatedLine>`
-      (`pretty::patch_annotated`), and `Vec<LintWarning>` (`lint::patch_lint`, despite that list
-      being sparse — the pre-order DFS traversal still guarantees contiguity). In a real TUI
-      session on a 20k-record / ~350k-row file, a single value edit dropped from 1375ms (initial
-      full load) to ~0.1ms; a delete to ~14ms. See `App::refresh_at`. Initial file load is still a
-      full parse+flatten+annotate+lint, inherently O(N), same as any tool. `undo`/`redo`/
-      jump-to-lint-warning still do a full rebuild (no single changed path exists for those).
+      value edit, delete, add, move, paste, toggle collapse, wrap, sort, plugin run, undo, redo)
+      patch only the affected subtree's contiguous block instead of a full O(N) rebuild — applied
+      to all three per-edit passes (`Vec<FlatRow>` via `tree::patch_flat`, `Vec<AnnotatedLine>` via
+      `pretty::patch_annotated`, `Vec<LintWarning>` via `lint::patch_lint` despite that list being
+      sparse — pre-order DFS still guarantees contiguity) plus `undo`/`redo` (`UndoEntry` carries
+      the same target path each edit already knew at push time, reused symmetrically in both
+      directions). In a real TUI session on a 50k-record / ~875k-row file: a single value edit
+      near the end of the document ~28-48ms, `undo`/`redo` ~28ms (down from ~3056ms full rebuild).
+      See `App::refresh_at`. Initial file load is still a full parse+flatten+annotate+lint,
+      inherently O(N), same as any tool. `jump_to_lint`/`expand_ancestors` remain unpatched — can
+      flip multiple non-contiguous ancestors' collapse state in one call, no single obvious
+      target; noted as a possible future improvement, low priority (rare navigation action).
 - [ ] **JSONLines** — stream-friendly format (one JSON object per line). The per-edit cost concern
       that blocked this is now mostly resolved (see "Large file performance" above), but initial
       load of a huge line-oriented log/dataset is still an O(N) full parse — same cost any format

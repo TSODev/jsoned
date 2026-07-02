@@ -41,8 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contiguous block in `Vec<FlatRow>`/`Vec<AnnotatedLine>` (`tree::patch_flat`,
   `pretty::patch_annotated`, `App::refresh_at`) instead of rebuilding the whole document on every
   keystroke. Isolated micro-benchmark: ~60-130x faster than a full rebuild at 1k-100k items.
-  `undo`/`redo`/jump-to-lint-warning still do a full rebuild (no single changed path exists for
-  those)
+  jump-to-lint-warning still does a full rebuild (can un-collapse multiple non-contiguous
+  ancestors in one call, no single changed path)
 - Lazy/incremental lint — `lint()` gets the same contiguous-block patch treatment
   (`lint::patch_lint`), despite `lint_warnings` being a *sparse* list (only violating nodes
   appear, not every node): the pre-order DFS traversal still guarantees a subtree's warnings land
@@ -52,6 +52,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   above — combined effect in a real TUI session on a 20k-record / ~350k-row file: a single value
   edit went from 1375ms (initial full load) to ~0.1ms; a delete (touching more of the tree) to
   ~14ms
+- Lazy/incremental `undo`/`redo` — every `push_undo(target)` call already happens right before a
+  localized edit whose diff is confined to `target` (the same path that edit passes to its own
+  `refresh_at` moments later), so the diff between a popped snapshot and the current root is
+  confined to that same subtree in either direction. `undo_stack`/`redo_stack` now carry that
+  target alongside each `JNode` snapshot (`UndoEntry`), and `undo()`/`redo()` call
+  `refresh_at(&entry.target, true)` instead of a full rebuild — reusing the same patch machinery,
+  no new patching logic. On a 50k-record / ~875k-row file, `undo` dropped from ~3056ms (full
+  rebuild) to ~28ms; `redo` likewise. `jump_to_lint`/`expand_ancestors` remain unpatched (noted
+  as a possible future improvement, lower priority — rare action, and can flip multiple
+  non-contiguous ancestors' collapse state in one call, so there's no single obvious target)
 
 ## [0.4.0] — 2026-07-01
 

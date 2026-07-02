@@ -68,6 +68,14 @@ pub struct PluginState {
     pub menu_cursor: usize,
 }
 
+/// One undo/redo stack entry: the pre-edit tree snapshot, plus the target path the edit that
+/// produced the *current* root touched — reused to patch (not fully rebuild) on undo/redo, since
+/// the diff between this snapshot and the state it's paired with is confined to that subtree.
+pub struct UndoEntry {
+    pub target: JPath,
+    pub root: JNode,
+}
+
 pub struct App {
     pub root: JNode,
     pub flat: Vec<crate::tree::FlatRow>,
@@ -88,8 +96,8 @@ pub struct App {
     pub explorer_fullscreen: bool,
     pub saved_show_left: bool,
     pub saved_show_preview: bool,
-    pub undo_stack: Vec<JNode>,
-    pub redo_stack: Vec<JNode>,
+    pub undo_stack: Vec<UndoEntry>,
+    pub redo_stack: Vec<UndoEntry>,
     // Search
     pub search_query: String,
     pub search_active: bool,
@@ -695,7 +703,7 @@ impl App {
 
         match state.mode {
             EditMode::Edit => {
-                self.push_undo();
+                self.push_undo(&state.path);
                 set_node_at_path(&mut self.root, &state.path, new_node);
                 self.refresh_at(&state.path, true);
                 self.modified = true;
@@ -723,7 +731,7 @@ impl App {
         let parent_path = row.path[..row.path.len() - 1].to_vec();
         let last_key = row.path.last().unwrap().clone();
 
-        self.push_undo();
+        self.push_undo(&parent_path);
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Object { entries, .. }, JKey::Field(k)) => {
@@ -752,7 +760,7 @@ impl App {
         let last_key = path.last().unwrap().clone();
         let mut new_path: Option<JPath> = None;
 
-        self.push_undo();
+        self.push_undo(&parent_path);
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
@@ -812,7 +820,7 @@ impl App {
         let last_key = row.path.last().unwrap().clone();
         let mut new_path: Option<JPath> = None;
 
-        self.push_undo();
+        self.push_undo(&parent_path);
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
                 (JNode::Array { items, .. }, JKey::Index(i)) => {
@@ -853,7 +861,7 @@ impl App {
         let mut new_last_key: Option<JKey> = None;
 
         // push_undo before the mutable borrow; pop it back if no move actually happened
-        self.push_undo();
+        self.push_undo(&parent_path);
 
         if let Some(parent) = get_node_at_path_mut(&mut self.root, &parent_path) {
             match (parent, &last_key) {
@@ -895,7 +903,7 @@ impl App {
     fn insert_child(&mut self, container_path: &JPath, key: Option<&str>, new_node: JNode) {
         let mut new_path: Option<JPath> = None;
 
-        self.push_undo();
+        self.push_undo(container_path);
         if let Some(container) = get_node_at_path_mut(&mut self.root, container_path) {
             match container {
                 JNode::Array { items, collapsed } => {
@@ -931,7 +939,7 @@ impl App {
         let mut new_path: Option<JPath> = None;
         let insert_idx = after + 1;
 
-        self.push_undo();
+        self.push_undo(parent_path);
         if let Some(container) = get_node_at_path_mut(&mut self.root, parent_path) {
             match container {
                 JNode::Array { items, .. } => {
@@ -1145,19 +1153,19 @@ impl App {
         self.refresh_at(&path, false);
     }
 
-    fn push_undo(&mut self) {
+    fn push_undo(&mut self, target: &JPath) {
         if self.undo_stack.len() >= 50 {
             self.undo_stack.remove(0);
         }
-        self.undo_stack.push(self.root.clone());
+        self.undo_stack.push(UndoEntry { target: target.clone(), root: self.root.clone() });
         self.redo_stack.clear();
     }
 
     fn undo(&mut self) {
-        if let Some(prev) = self.undo_stack.pop() {
-            self.redo_stack.push(self.root.clone());
-            self.root = prev;
-            self.refresh_flat();
+        if let Some(entry) = self.undo_stack.pop() {
+            self.redo_stack.push(UndoEntry { target: entry.target.clone(), root: self.root.clone() });
+            self.root = entry.root;
+            self.refresh_at(&entry.target, true);
             self.modified = true;
             self.status = format!("undo · {} left", self.undo_stack.len());
         } else {
@@ -1166,10 +1174,10 @@ impl App {
     }
 
     fn redo(&mut self) {
-        if let Some(next) = self.redo_stack.pop() {
-            self.undo_stack.push(self.root.clone());
-            self.root = next;
-            self.refresh_flat();
+        if let Some(entry) = self.redo_stack.pop() {
+            self.undo_stack.push(UndoEntry { target: entry.target.clone(), root: self.root.clone() });
+            self.root = entry.root;
+            self.refresh_at(&entry.target, true);
             self.modified = true;
             self.status = format!("redo · {} forward", self.redo_stack.len());
         } else {
@@ -1329,7 +1337,7 @@ impl App {
 
         match plugin.run(node, arg.trim()) {
             Ok(new_node) => {
-                self.push_undo();
+                self.push_undo(&path);
                 set_node_at_path(&mut self.root, &path, new_node);
                 self.refresh_at(&path, true);
                 self.modified = true;
@@ -1370,7 +1378,7 @@ impl App {
             let new_key = new_key.clone();
             let parent_path = path[..path.len() - 1].to_vec();
 
-            self.push_undo();
+            self.push_undo(&parent_path);
             if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &parent_path) {
                 if let Some(pos) = entries.get_index_of(original_key.as_str()) {
                     let mut inner = indexmap::IndexMap::new();
@@ -1389,7 +1397,7 @@ impl App {
         }
 
         // Default: wrap the value in place (Array items, or wrap-in-Array for any node).
-        self.push_undo();
+        self.push_undo(&path);
         let wrapped = match key_opt {
             None => JNode::Array { items: vec![original], collapsed: false },
             Some(k) => {
@@ -1456,7 +1464,7 @@ impl App {
         }
         let Some(idx) = old_idx else { return; };
 
-        self.push_undo();
+        self.push_undo(&parent_path);
         if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &parent_path) {
             let Some((_, val)) = entries.shift_remove_index(idx) else { return; };
             entries.shift_insert(idx, new_key.clone(), val);
@@ -1474,7 +1482,7 @@ impl App {
             self.status = "select an Object to sort its keys".to_string();
             return;
         }
-        self.push_undo();
+        self.push_undo(&path);
         if let Some(JNode::Object { entries, .. }) = get_node_at_path_mut(&mut self.root, &path) {
             entries.sort_keys();
         }
@@ -1727,4 +1735,156 @@ pub fn run(file: Option<PathBuf>, stdin_content: Option<String>) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod undo_redo_tests {
+    use super::*;
+
+    fn test_app(value: serde_json::Value) -> App {
+        App::new(None, Some(value.to_string())).unwrap()
+    }
+
+    fn field(name: &str) -> JKey {
+        JKey::Field(Rc::from(name))
+    }
+
+    fn row_index(app: &App, path: &JPath) -> usize {
+        app.flat.iter().position(|r| &r.path == path).unwrap()
+    }
+
+    #[test]
+    fn undo_after_delete_restores_value_and_matches_full_rebuild() {
+        let mut app = test_app(serde_json::json!({"a": 1, "b": 2, "c": 3}));
+        let target: JPath = vec![field("b")];
+        app.cursor = row_index(&app, &target);
+
+        app.delete_node();
+        assert!(get_node_at_path(&app.root, &target).is_none());
+
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert_eq!(get_node_at_path(&app.root, &target), Some(&JNode::Scalar(JScalar::Number("2".into()))));
+    }
+
+    #[test]
+    fn redo_after_undo_reapplies_delete() {
+        let mut app = test_app(serde_json::json!({"a": 1, "b": 2, "c": 3}));
+        let target: JPath = vec![field("b")];
+        app.cursor = row_index(&app, &target);
+
+        app.delete_node();
+        app.undo();
+        app.redo();
+
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert!(get_node_at_path(&app.root, &target).is_none());
+    }
+
+    #[test]
+    fn two_edits_at_different_targets_undo_in_reverse_order() {
+        let mut app = test_app(serde_json::json!({"a": {"x": 1}, "b": {"y": 2}}));
+
+        let target_a: JPath = vec![field("a"), field("x")];
+        app.cursor = row_index(&app, &target_a);
+        app.delete_node();
+
+        let target_b: JPath = vec![field("b"), field("y")];
+        app.cursor = row_index(&app, &target_b);
+        app.delete_node();
+
+        assert!(get_node_at_path(&app.root, &target_a).is_none());
+        assert!(get_node_at_path(&app.root, &target_b).is_none());
+
+        // undo the second delete first
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert!(get_node_at_path(&app.root, &target_a).is_none());
+        assert!(get_node_at_path(&app.root, &target_b).is_some());
+
+        // then the first
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert!(get_node_at_path(&app.root, &target_a).is_some());
+        assert!(get_node_at_path(&app.root, &target_b).is_some());
+    }
+
+    #[test]
+    fn move_node_undo_matches_full_rebuild() {
+        let mut app = test_app(serde_json::json!({"items": [1, 2, 3]}));
+        let target: JPath = vec![field("items"), JKey::Index(1)];
+        app.cursor = row_index(&app, &target);
+        app.move_node(true); // move up: swaps index 1 and 0
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+    }
+
+    #[test]
+    fn sort_children_undo_matches_full_rebuild() {
+        let mut app = test_app(serde_json::json!({"obj": {"z": 1, "a": 2, "m": 3}}));
+        let target: JPath = vec![field("obj")];
+        app.cursor = row_index(&app, &target);
+        app.sort_children();
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+    }
+
+    /// Covers operations that need an EditState to drive interactively (commit_value,
+    /// do_rename, do_wrap, run_plugin, insert_child/insert_sibling) — the bookkeeping mechanism
+    /// they all share is push_undo(&target) + mutate + refresh_at(&target, true), identical
+    /// regardless of which forward function triggers it.
+    #[test]
+    fn generic_push_undo_and_refresh_at_roundtrip() {
+        let mut app = test_app(serde_json::json!({"nested": {"value": "old"}}));
+        let target: JPath = vec![field("nested"), field("value")];
+
+        app.push_undo(&target);
+        set_node_at_path(&mut app.root, &target, JNode::Scalar(JScalar::String("new".into())));
+        app.refresh_at(&target, true);
+        assert_eq!(get_node_at_path(&app.root, &target), Some(&JNode::Scalar(JScalar::String("new".into()))));
+
+        app.undo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert_eq!(get_node_at_path(&app.root, &target), Some(&JNode::Scalar(JScalar::String("old".into()))));
+
+        app.redo();
+        assert_eq!(app.flat, flatten(&app.root));
+        assert_eq!(app.annotated, annotate(&app.root));
+        assert_eq!(app.lint_warnings, lint(&app.root));
+        assert_eq!(get_node_at_path(&app.root, &target), Some(&JNode::Scalar(JScalar::String("new".into()))));
+    }
+
+    #[test]
+    fn undo_stack_capped_at_50() {
+        let mut app = test_app(serde_json::json!({"a": 1}));
+        let target: JPath = vec![field("a")];
+        for i in 0..55 {
+            app.push_undo(&target);
+            set_node_at_path(&mut app.root, &target, JNode::Scalar(JScalar::Number(i.to_string())));
+        }
+        assert_eq!(app.undo_stack.len(), 50);
+    }
+
+    #[test]
+    fn nothing_to_undo_or_redo_status_messages() {
+        let mut app = test_app(serde_json::json!({"a": 1}));
+        app.undo();
+        assert_eq!(app.status, "nothing to undo");
+        app.redo();
+        assert_eq!(app.status, "nothing to redo");
+    }
 }
