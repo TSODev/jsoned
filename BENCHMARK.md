@@ -118,11 +118,12 @@ On a 50,000-record / ~875,000-row generated file (see below):
 
 ## Generating a large test file for manual testing
 
-A separate tool, [`json_perf_gen`](../json_perf_gen), generates synthetic JSON test data matching
-the shape used in this benchmark:
+`examples/json_perf_gen.rs` generates synthetic JSON test data matching the shape used in this
+benchmark. It's a dev-only example (its dependencies — `fake`, `indicatif`, `uuid`, `chrono` — are
+`[dev-dependencies]`, never compiled into the shipped `jsoned` binary):
 
 ```sh
-json_perf_gen --count 50000 --format json --output big.json
+cargo run --release --example json_perf_gen -- --count 50000 --format json --output big.json
 jsoned big.json
 ```
 

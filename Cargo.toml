@@ -31,3 +31,11 @@ jaq-core     = "3.1.0"
 jaq-std      = "3.0.1"
 jaq-json     = "2.0.1"
 regex        = "1"
+
+[dev-dependencies]
+# Only for examples/json_perf_gen.rs (synthetic test-data generator for BENCHMARK.md) — never
+# compiled into the shipped `jsoned` binary.
+fake      = { version = "2.9", features = ["derive"] }
+indicatif = "0.17"
+uuid      = { version = "1.6", features = ["v4", "serde"] }
+chrono    = { version = "0.4", features = ["serde"] }
