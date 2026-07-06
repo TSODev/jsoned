@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crossterm::{
-    event::KeyCode,
+    event::{KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -52,6 +52,11 @@ impl DiffApp {
     }
 
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.quit = true;
+            return;
+        }
+
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => self.quit = true,
             KeyCode::Char('j') | KeyCode::Down => self.move_cursor(1),

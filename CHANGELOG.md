@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `Ctrl+C` now force-quits from *any* mode, not just normal mode — previously it was only checked inside `handle_key_normal`, so pressing it while an edit prompt, save-as dialog, or plugin menu was open did nothing. Both `App::handle_key()` and `DiffApp::handle_key()` (`--diff` view) now check it first, before any modal dispatch
+- Panic hook installed at startup — a panic while the TUI is in raw mode / alternate screen used to leave the terminal broken (garbled input, invisible cursor) until running `reset`/`stty sane`; the terminal is now restored before the panic report prints
+
+### Changed
+- Status bar line 1 now shares the same background band (`Indexed(236)`) as line 2 — previously line 1 had no background and looked visually disconnected from the hint line below it
+
 ## [0.5.0] — 2026-07-02
 
 ### Added

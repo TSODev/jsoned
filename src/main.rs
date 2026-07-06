@@ -42,8 +42,28 @@ struct Cli {
     redact: Vec<String>,
 }
 
+/// Restore the terminal (raw mode + alternate screen) before a panic's default report prints —
+/// otherwise a panic while a raw-mode/alternate-screen TUI is active (main TUI or --diff TUI)
+/// leaves the terminal in a broken state (garbled input, invisible cursor) until the user runs
+/// `reset`/`stty sane`. Both stdout and stderr are cleared since the main TUI's backend depends
+/// on stdout_mode (stderr when piped, stdout otherwise) and the panic hook is installed before
+/// that's known.
+fn install_panic_hook() {
+    use crossterm::{execute, terminal::{disable_raw_mode, LeaveAlternateScreen}};
+
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+        let _ = execute!(std::io::stderr(), LeaveAlternateScreen);
+        default_hook(panic_info);
+    }));
+}
+
 fn main() -> Result<()> {
     use std::io::{IsTerminal, Read};
+
+    install_panic_hook();
 
     let cli = Cli::parse();
 

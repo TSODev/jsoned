@@ -404,6 +404,7 @@ keybindings (no overlap with the main editor's mode above):
 | `[` / `N` | Jump to previous changed row |
 | `o` | Toggle hiding unchanged rows |
 | `q` / `Esc` | Quit |
+| `Ctrl+C` | Force quit immediately |
 
 ### View
 
@@ -419,4 +420,4 @@ keybindings (no overlap with the main editor's mode above):
 | Key | Action |
 |-----|--------|
 | `q` | Quit (press twice if no unsaved changes; save dialog if modified) |
-| `Ctrl+C` | Force quit immediately |
+| `Ctrl+C` | Force quit immediately — works even inside dialogs, edit prompts, or menus, and restores the terminal cleanly if jsoned ever panics |

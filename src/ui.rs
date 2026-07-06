@@ -841,7 +841,7 @@ fn render_status(f: &mut Frame, app: &App, area: Rect) {
     };
 
     let lines = vec![
-        Line::from(Span::styled(line1, Style::default().fg(Color::White))),
+        Line::from(Span::styled(line1, Style::default().fg(Color::White).bg(Color::Indexed(236)))),
         hint_line,
     ];
     f.render_widget(Paragraph::new(lines), area);
@@ -987,7 +987,7 @@ fn render_diff_status(f: &mut Frame, app: &DiffApp, area: Rect) {
     let hint = "  j/k: move  ]/n, [/N: next/prev change  o: toggle only-changes  q: quit";
 
     let lines = vec![
-        Line::from(Span::styled(line1, Style::default().fg(Color::White))),
+        Line::from(Span::styled(line1, Style::default().fg(Color::White).bg(Color::Indexed(236)))),
         Line::from(Span::styled(
             hint,
             Style::default().fg(Color::Indexed(252)).bg(Color::Indexed(236)),

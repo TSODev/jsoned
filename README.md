@@ -124,6 +124,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 | `Ctrl+E` | Toggle Explorer fullscreen |
 | `Esc` | Cancel / clear search / clear status |
 | `q` | Quit |
+| `Ctrl+C` | Force quit immediately (works even inside dialogs/menus) |
 
 ### Diff mode
 
@@ -136,6 +137,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 | `[` / `N` | Jump to previous change |
 | `o` | Toggle hiding unchanged rows |
 | `q` / `Esc` | Quit |
+| `Ctrl+C` | Force quit immediately |
 
 ---
 

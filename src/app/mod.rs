@@ -245,6 +245,11 @@ impl App {
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
         use KeyCode::*;
 
+        if key.code == Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.quit = true;
+            return;
+        }
+
         if self.save_dialog {
             self.handle_save_dialog(key);
             return;
@@ -271,9 +276,6 @@ impl App {
         }
 
         match (key.modifiers, key.code) {
-            (KeyModifiers::CONTROL, Char('c')) => {
-                self.quit = true;
-            }
             (KeyModifiers::NONE, Char('q')) => {
                 if self.modified {
                     self.save_dialog = true;
