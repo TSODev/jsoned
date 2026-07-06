@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-07-06
+
 ### Added
 - Printable keyboard reference — `jsoned-keymap.html` / `jsoned-keymap.pdf`, a one-page A4-landscape cheat sheet covering the main editor, diff mode, and CLI/headless flags. Same format as terapi's and rowdy-db's companion keymap cards; color-coded using jsoned's own in-app accent colors (cyan=navigation, amber=editing, magenta=plugins/saving, violet=diff mode) rather than an arbitrary palette
 
