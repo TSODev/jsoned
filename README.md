@@ -48,11 +48,13 @@ two different formats (`a.json --diff b.yaml`).
 - Dot-path indicator (`steps.0.extracted`) always shows where you are in the tree
 - Fast on large files — flat render model, no DOM reflow
 
-See [USAGE.md](USAGE.md) for the full reference, [What's New](CHANGELOG.md) for the release
-history, and [BENCHMARK.md](BENCHMARK.md) for reproducible performance numbers on large files.
+## Documentation
 
-> Prefer a printable cheat sheet? One-page A4-landscape keyboard reference covering the main
-> editor, diff mode, and CLI — [HTML](jsoned-keymap.html) or [PDF](jsoned-keymap.pdf).
+- [USAGE.md](USAGE.md) — full documentation
+- [CHANGELOG.md](CHANGELOG.md) — what's new
+- [BENCHMARK.md](BENCHMARK.md) — reproducible performance numbers on large files
+- [jsoned-keymap.html](jsoned-keymap.html) — printable keyboard reference (HTML)
+- [jsoned-keymap.pdf](jsoned-keymap.pdf) — printable keyboard reference (PDF)
 
 ---
 
