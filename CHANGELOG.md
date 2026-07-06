@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Printable keyboard reference — `jsoned-keymap.html` / `jsoned-keymap.pdf`, a one-page A4-landscape cheat sheet covering the main editor, diff mode, and CLI/headless flags. Same format as terapi's and rowdy-db's companion keymap cards; color-coded using jsoned's own in-app accent colors (cyan=navigation, amber=editing, magenta=plugins/saving, violet=diff mode) rather than an arbitrary palette
+
 ### Fixed
 - `Ctrl+C` now force-quits from *any* mode, not just normal mode — previously it was only checked inside `handle_key_normal`, so pressing it while an edit prompt, save-as dialog, or plugin menu was open did nothing. Both `App::handle_key()` and `DiffApp::handle_key()` (`--diff` view) now check it first, before any modal dispatch
 - Panic hook installed at startup — a panic while the TUI is in raw mode / alternate screen used to leave the terminal broken (garbled input, invisible cursor) until running `reset`/`stty sane`; the terminal is now restored before the panic report prints

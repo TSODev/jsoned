@@ -51,6 +51,9 @@ two different formats (`a.json --diff b.yaml`).
 See [USAGE.md](USAGE.md) for the full reference, [What's New](CHANGELOG.md) for the release
 history, and [BENCHMARK.md](BENCHMARK.md) for reproducible performance numbers on large files.
 
+> Prefer a printable cheat sheet? One-page A4-landscape keyboard reference covering the main
+> editor, diff mode, and CLI — [HTML](jsoned-keymap.html) or [PDF](jsoned-keymap.pdf).
+
 ---
 
 ## Installation
@@ -96,6 +99,8 @@ Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 ---
 
 ## Keybindings
+
+> Prefer a printable cheat sheet? [HTML](jsoned-keymap.html) or [PDF](jsoned-keymap.pdf) — one-page A4-landscape reference.
 
 | Key | Action |
 |-----|--------|

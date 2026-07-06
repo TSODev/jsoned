@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>jsoned — Keyboard Reference</title>
+<style>
+  /* ── Reset & base ────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /*
+    Same print-first sheet as terapi's (terapi-keymap.html) and rowdy-db's
+    (rowdy-keymap.html) reference cards — an A4-landscape page meant to be
+    printed and pinned next to a keyboard, not browsed. One committed
+    "ground" (light paper), no light/dark toggle nobody will use mid-print.
+  */
+  :root {
+    --bg:        #ffffff;
+    --paper:     #fbfcfd;
+    --text:      #1e293b;
+    --muted:     #64748b;
+    --key-bg:    #1e293b;
+    --key-fg:    #f8fafc;
+    --border:    #e2e8f0;
+
+    /* accents reused from jsoned's own in-app color coding —
+       cyan = navigation/keys (matches the Explorer key-column cyan),
+       green = save/export (matches the String value color),
+       amber = editing surfaces (matches terapi's "editing" accent —
+               also close to jsoned's own orange lint-warning highlight),
+       magenta = plugins (matches the Boolean value color),
+       violet = diff mode (its own read-only view, kept distinct),
+       slate = cross-cutting / meta */
+    --c-slate:   #475569;
+    --c-cyan:    #0e7490;
+    --c-green:   #15803d;
+    --c-amber:   #b45309;
+    --c-magenta: #a21caf;
+    --c-violet:  #6d28d9;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 6mm 11mm;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 9pt;
+    color: var(--text);
+    background: var(--paper);
+    line-height: 1.4;
+  }
+
+  .mono {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", ui-monospace, Menlo, monospace;
+  }
+
+  /* ── Page ────────────────────────────────────────────────────────────── */
+  .page {
+    background: var(--bg);
+    max-width: 297mm;
+    margin: 0 auto 14px;
+    padding: 2px;
+  }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ── Header ──────────────────────────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 2px solid var(--text);
+    padding-bottom: 4px;
+    margin-bottom: 8px;
+  }
+  header h1 {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", ui-monospace, Menlo, monospace;
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+  header h1 span {
+    color: var(--c-cyan);
+  }
+  header .meta {
+    font-size: 8pt;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.6;
+  }
+  header .tagline {
+    font-size: 10pt;
+    color: var(--muted);
+    font-style: italic;
+    align-self: center;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────────────── */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 9px;
+    align-items: start;
+  }
+
+  /* ── Section ─────────────────────────────────────────────────────────── */
+  .section {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+    break-inside: avoid;
+    margin-bottom: 7px;
+  }
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3.5px 7px;
+    font-size: 8.8pt;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: #ffffff;
+  }
+  .section-title .icon { font-size: 10.2pt; }
+
+  /* colour variants, grounded in jsoned's own value/status colors */
+  .slate   .section-title { background: var(--c-slate);   }
+  .cyan    .section-title { background: var(--c-cyan);    }
+  .green   .section-title { background: var(--c-green);   }
+  .amber   .section-title { background: var(--c-amber);   }
+  .magenta .section-title { background: var(--c-magenta); }
+  .violet  .section-title { background: var(--c-violet);  }
+
+  /* ── Key table ───────────────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  tr:nth-child(even) td { background: #f8fafc; }
+  td {
+    padding: 2px 7px;
+    vertical-align: middle;
+  }
+  td:first-child {
+    width: 34%;
+    white-space: nowrap;
+  }
+  td:last-child {
+    color: var(--muted);
+  }
+
+  /* ── Key badge ───────────────────────────────────────────────────────── */
+  kbd {
+    display: inline-block;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", ui-monospace, monospace;
+    font-size: 7.8pt;
+    font-weight: 600;
+    background: var(--key-bg);
+    color: var(--key-fg);
+    border-radius: 3px;
+    padding: 1px 4px;
+    margin: 0 1px;
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+  }
+
+  /* sub-row for indent / nested context */
+  .sub td { padding-left: 16px; color: var(--muted); font-style: italic; }
+  .sub td:first-child { color: var(--muted); }
+  .sub kbd { background: #94a3b8; }
+
+  /* separator row */
+  .sep td { padding-top: 3.5px; border-top: 1px solid var(--border); }
+
+  /* ── Footer ──────────────────────────────────────────────────────────── */
+  footer {
+    margin-top: 2px;
+    border-top: 1px solid var(--border);
+    padding-top: 2px;
+    font-size: 7.6pt;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header>
+    <div>
+      <h1>⌨ <span>jsoned</span></h1>
+      <div class="tagline">jless, but you can actually edit things — JSON/YAML/TOML/CSV/JSONL viewer, editor &amp; converter</div>
+    </div>
+    <div class="meta">
+      v0.5.0 &nbsp;·&nbsp; MIT<br>
+      crates.io/crates/jsoned<br>
+      github.com/TSODev/jsoned
+    </div>
+  </header>
+
+  <div class="columns">
+
+    <!-- ═══════════════════ COLUMN 1 ═══════════════════ -->
+    <div>
+
+      <!-- Global -->
+      <div class="section slate">
+        <div class="section-title"><span class="icon">⌨</span> Global</div>
+        <table>
+          <tr><td><kbd>q</kbd> <kbd>q</kbd></td><td>Quit — press twice to confirm</td></tr>
+          <tr><td><kbd>Ctrl+C</kbd></td><td>Quit immediately — even inside dialogs/menus</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Close modal / exit edit mode (not quit)</td></tr>
+          <tr class="sep"><td><kbd>[</kbd></td><td>Toggle Source panel (line numbers)</td></tr>
+          <tr><td><kbd>]</kbd></td><td>Toggle Detail panel (node preview)</td></tr>
+          <tr><td><kbd>Ctrl+E</kbd></td><td>Toggle Explorer fullscreen</td></tr>
+        </table>
+      </div>
+
+      <!-- Navigation & Search -->
+      <div class="section cyan">
+        <div class="section-title"><span class="icon">🧭</span> Navigation, Folding &amp; Search</div>
+        <table>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd> / <kbd>k</kbd> <kbd>j</kbd></td><td>Move cursor</td></tr>
+          <tr><td><kbd>PgUp</kbd> <kbd>PgDn</kbd></td><td>Jump 20 rows</td></tr>
+          <tr><td><kbd>gg</kbd> / <kbd>G</kbd></td><td>Jump to first / last row</td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>Space</kbd></td><td>Fold / unfold Object or Array</td></tr>
+          <tr class="sep"><td><kbd>/</kbd></td><td>Incremental search — keys + values</td></tr>
+          <tr><td><kbd>n</kbd> / <kbd>N</kbd></td><td>Next / previous match, wraps around</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Matches green; counter shown as <span class="mono">[3/12]</span></td></tr>
+        </table>
+      </div>
+
+      <!-- Format notes -->
+      <div class="section slate">
+        <div class="section-title"><span class="icon">📄</span> Format Notes</div>
+        <table>
+          <tr><td>JSON</td><td>Key order preserved</td></tr>
+          <tr><td>TOML</td><td><span class="mono">null</span> not supported on export</td></tr>
+          <tr><td>CSV</td><td>Dot-notation flatten; root: object or array</td></tr>
+          <tr><td>JSONL</td><td>One value/line ↔ array; else single line</td></tr>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════ COLUMN 2 ═══════════════════ -->
+    <div>
+
+      <!-- Editing values -->
+      <div class="section amber">
+        <div class="section-title"><span class="icon">✎</span> Editing Values</div>
+        <table>
+          <tr><td><kbd>e</kbd></td><td>Edit selected scalar — type dropdown</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Type: String / Number / Boolean / Null</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Confirm type → value editor</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Cancel edit</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Scalars only — Objects/Arrays show a hint</td></tr>
+        </table>
+      </div>
+
+      <!-- Editing structure + undo -->
+      <div class="section amber">
+        <div class="section-title"><span class="icon">🧱</span> Editing Structure</div>
+        <table>
+          <tr><td><kbd>r</kbd></td><td>Rename selected key (Object only)</td></tr>
+          <tr><td><kbd>a</kbd></td><td>Add child / sibling after (scalar)</td></tr>
+          <tr><td><kbd>w</kbd></td><td>Wrap in Array <span class="mono">[n]</span> or Object <span class="mono">{k:n}</span></td></tr>
+          <tr><td><kbd>d</kbd> / <kbd>D</kbd></td><td>Delete / duplicate node</td></tr>
+          <tr><td><kbd>y</kbd> / <kbd>p</kbd> / <kbd>P</kbd></td><td>Copy / paste after / before</td></tr>
+          <tr><td><kbd>K</kbd> / <kbd>J</kbd></td><td>Move node up / down</td></tr>
+          <tr><td><kbd>S</kbd></td><td>Sort Object children by key</td></tr>
+          <tr><td><kbd>E</kbd> / <kbd>C</kbd></td><td>Expand all / collapse all</td></tr>
+          <tr class="sep"><td><kbd>u</kbd> / <kbd>Ctrl+R</kbd></td><td>Undo / redo — 50-level history</td></tr>
+        </table>
+      </div>
+
+      <!-- CLI / Headless -->
+      <div class="section slate">
+        <div class="section-title"><span class="icon">›_</span> CLI &amp; Headless</div>
+        <table>
+          <tr><td><span class="mono">--to &lt;fmt&gt;</span></td><td>Headless conversion — no TUI</td></tr>
+          <tr><td><span class="mono">-o, --output</span></td><td>Write to a file instead of stdout</td></tr>
+          <tr><td><span class="mono">--redact k1,k2</span></td><td>Mask values (headless <em>and</em> Save-As)</td></tr>
+          <tr><td><span class="mono">cat f | jsoned</span></td><td>Stdin pipe — TUI on stderr</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td><kbd>s</kbd> writes JSON to stdout, exits</td></tr>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════ COLUMN 3 ═══════════════════ -->
+    <div>
+
+      <!-- Lint -->
+      <div class="section amber">
+        <div class="section-title"><span class="icon">⚠</span> Structural Lint</div>
+        <table>
+          <tr><td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td><td>Next / previous lint warning</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Checks: empty keys <span class="mono">""</span>, depth &gt; 20</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Orange row; auto-expands ancestors; clears on fix</td></tr>
+        </table>
+      </div>
+
+      <!-- Plugins + Saving -->
+      <div class="section magenta">
+        <div class="section-title"><span class="icon">🔌</span> Plugins &amp; Saving</div>
+        <table>
+          <tr><td><kbd>|</kbd></td><td>Open Plugins menu (e.g. <span class="mono">jq</span>)</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Pick → type argument → apply to node</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Replaces node in place — undo-able; no external binary</td></tr>
+          <tr class="sep"><td><kbd>s</kbd></td><td>Save to the original file</td></tr>
+          <tr><td><kbd>W</kbd></td><td>Save as — format, then filename</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td><span class="mono">JSON · YAML · TOML · CSV · JSONL</span></td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Optional redact-keys step in between (blank = skip)</td></tr>
+        </table>
+      </div>
+
+      <!-- Diff mode -->
+      <div class="section violet">
+        <div class="section-title"><span class="icon">⇄</span> Diff Mode <span class="mono" style="font-weight:400;font-size:6.3pt;opacity:.9">--diff b.json</span></div>
+        <table>
+          <tr><td><kbd>j</kbd> <kbd>k</kbd> / <kbd>↓</kbd> <kbd>↑</kbd></td><td>Move cursor</td></tr>
+          <tr><td><kbd>]</kbd> / <kbd>n</kbd> · <kbd>[</kbd> / <kbd>N</kbd></td><td>Next / previous changed row</td></tr>
+          <tr><td><kbd>o</kbd></td><td>Toggle hiding unchanged rows</td></tr>
+          <tr><td><kbd>q</kbd> / <kbd>Esc</kbd> / <kbd>Ctrl+C</kbd></td><td>Quit</td></tr>
+          <tr class="sub"><td>&nbsp;</td><td>Read-only, structural — no edit/undo/search/save</td></tr>
+          <tr class="sep"><td>Headless</td><td><span class="mono">--to text|json [-o out]</span></td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <span>jsoned v0.5.0 &nbsp;·&nbsp; <strong class="mono">cargo install jsoned</strong></span>
+    <span>github.com/TSODev/jsoned &nbsp;·&nbsp; USAGE.md for full reference</span>
+  </footer>
+</div>
+
+</body>
+</html>
