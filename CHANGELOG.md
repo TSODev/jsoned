@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-16
+
 ### Added
 - `fake` plugin — a second `Plugin` alongside `jq`, generating fake/random JSON data (names,
   emails, phone numbers, job titles, lorem text, numbers, booleans, UUIDs) from a small DSL typed
@@ -38,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before the guardrail above. Hand-rolled instead against `chrono` directly, which also moves from
   `[dev-dependencies]` to a real `[dependencies]` entry (default features, no `serde`, since the
   plugin only ever calls `.format()` to produce a `String`).
+
+### Fixed
+- `fake` plugin: object field sugar (`{ datetime, ... }`, no `:`) ignored a trailing `(args)` or
+  `@locale` on the bare key — `{ datetime, datetime@fr }` failed with `expected ',' or '}', found
+  At`, because the sugar path built a bare `Leaf` directly instead of reusing the tail-parsing
+  logic `parse_type_atom` already had for exactly this. Extracted into a shared
+  `parse_leaf_tail`, used by both.
 
 ## [0.5.1] — 2026-07-06
 
