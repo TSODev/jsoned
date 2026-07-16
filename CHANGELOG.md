@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `fake` plugin — a second `Plugin` alongside `jq`, generating fake/random JSON data (names,
+  emails, phone numbers, job titles, lorem text, numbers, booleans, UUIDs) from a small DSL typed
+  into the plugin prompt. Grammar mirrors JSON's own shape (`{ field, ... }` for objects, `[N]
+  expr` for arrays, bare type names as leaves) so it reads naturally to anyone already editing
+  JSON; `[N]`'s count is always mandatory (no silent default-if-omitted) to avoid surprise array
+  sizes. Recursive by construction — `{ user: { name, email }, tags: [3] word }` and even
+  array-of-arrays nest for free, no special-casing in the parser. Headline use case: `[10] { name,
+  email, job }` seeds a ten-record array of fake users in one keystroke. English locale only for
+  v1 (`FR_FR` support is a clean future add, not a structural blocker). `fake` (the underlying
+  crate) moves from `[dev-dependencies]` (previously used only by the `examples/json_perf_gen.rs`
+  benchmark generator) to a real `[dependencies]` entry, since this plugin ships in the binary.
+  See `src/fake_data.rs`, `USAGE.md`'s `### fake` section.
+
 ## [0.5.1] — 2026-07-06
 
 ### Added

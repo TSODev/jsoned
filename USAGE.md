@@ -175,6 +175,37 @@ root to run the filter against the whole document). Powered by the bundled
 If the filter produces more than one output (e.g. `.users[]`), the outputs are collected into a
 JSON array and used as the replacement.
 
+### `fake`
+
+Generates fake/random JSON data from a small DSL and replaces the selected node with it — useful
+for seeding test structures without leaving the editor. Ignores the selected node's content; the
+result comes entirely from the typed expression.
+
+```
+| → fake → [10] { name, email, job } → Enter
+```
+
+Grammar: an expression is an object `{ field, field: expr, ... }`, an array `[N] expr` (`N` is
+always required, no default), or a leaf type. A bare field name is sugar for `field: field` (the
+key doubles as the type). Leaves can take optional numeric arguments in parentheses.
+
+| Leaf | Produces | Optional args |
+|---|---|---|
+| `name`, `first_name`, `last_name`, `username` | identity strings | — |
+| `email`, `phone`, `address`, `city`, `country`, `zipcode`, `url` | contact strings | — |
+| `job`, `company` | professional strings | — |
+| `word` | one word | — |
+| `words(n)` | `n`-word phrase (default 3) | `n` |
+| `sentence(n)` | `n`-word sentence (default 6) | `n` |
+| `paragraph(n)` | `n`-sentence paragraph (default 3) | `n` |
+| `number(min,max)` | integer, inclusive range (default 0-1000) | `min,max` |
+| `float(min,max)` | float, range (default 0.0-1.0) | `min,max` |
+| `bool(pct)` | boolean, `pct`% chance of `true` (default 50) | `pct` |
+| `uuid` | a v4 UUID string | — |
+
+English data only for v1. `email` always resolves to `@example.{com,net,org}` — safe to paste
+anywhere, never a real address.
+
 > Plugins are compiled into the binary — there's no dynamic loading of external/third-party
 > plugins (yet). Adding one means adding a Rust module that implements the `Plugin` trait.
 

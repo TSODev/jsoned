@@ -126,6 +126,12 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       matching inside string values via `regex` (catches secrets embedded as URL query
       parameters). TUI: new step in the `W` (Save as) flow. Headless: `--redact key1,key2`
       alongside `--to`. See `src/redact.rs`.
+- [x] **`fake` plugin** ✅ — generates fake/random JSON data (names, emails, phone numbers, job
+      titles, etc.) from a small DSL typed into the plugin prompt, e.g. `[10] { name, email, job }`
+      for an array of fake user objects. Supports nested objects/arrays (`{ user: { name, email },
+      tags: [3] word }`) since the DSL grammar is recursive by construction. Fits the existing
+      `Plugin` trait as-is (`JNode` in — ignored — `JNode` out, sync), no trait changes needed.
+      English locale only for v1; French (`FR_FR`) is a clean future add. See `src/fake_data.rs`.
 - [ ] **More plugins** — codegen (struct/type generation for a target language), web import +
       prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
       need the `Plugin` trait to grow (non-`JNode` output, async work)

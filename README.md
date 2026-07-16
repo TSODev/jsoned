@@ -40,7 +40,7 @@ two different formats (`a.json --diff b.yaml`).
 - **Sort** Object children alphabetically; **expand** or **collapse** entire subtrees
 - **Search** — `/` to search keys and values, `n`/`N` to navigate matches
 - **Structural lint** — automatic checks on load and after every edit (empty keys, excessive depth); warnings highlighted in orange; `Tab`/`Shift+Tab` to navigate; correcting a node clears its warning instantly
-- **Plugins** — `|` opens a Plugins menu to transform the selected node; ships with a `jq` plugin (bundled, no external `jq` binary needed)
+- **Plugins** — `|` opens a Plugins menu to transform the selected node; ships with a `jq` plugin (bundled, no external `jq` binary needed) and a `fake` plugin (generates fake/random JSON data — names, emails, phone numbers, and more — from a small DSL, e.g. `[10] { name, email, job }`)
 - **Diff** — `jsoned a.json --diff b.json` opens a read-only, structural (key-path) diff between two files, even across formats (JSON vs YAML vs TOML vs CSV); headless with `--to text|json`
 - **Save as** any supported format with `W` — format picker + filename editor in-TUI
 - **Pipe mode** — `cat file.json | jsoned` reads stdin; `s` writes JSON to stdout and exits
@@ -124,7 +124,7 @@ Supported formats: `json`, `yaml`, `toml`, `csv`, `jsonl`
 | `/` | Search by key or value |
 | `n` / `N` | Next / previous match |
 | `Tab` / `Shift+Tab` | Next / previous lint warning |
-| `\|` | Open Plugins menu (e.g. run a `jq` filter on the selected node) |
+| `\|` | Open Plugins menu (e.g. run a `jq` filter, or generate fake data with `fake`) |
 | `s` | Save |
 | `W` | Save as (format picker + filename editor) |
 | `[` / `]` | Toggle Source / Detail panel |

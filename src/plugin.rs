@@ -15,7 +15,7 @@ pub trait Plugin {
 }
 
 pub fn registry() -> Vec<Box<dyn Plugin>> {
-    vec![Box::new(JqPlugin)]
+    vec![Box::new(JqPlugin), Box::new(crate::fake_data::FakePlugin)]
 }
 
 pub struct JqPlugin;

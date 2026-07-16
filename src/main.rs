@@ -10,6 +10,7 @@ mod convert;
 mod pretty;
 mod lint;
 mod plugin;
+mod fake_data;
 mod diff;
 mod diff_app;
 mod redact;
