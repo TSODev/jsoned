@@ -136,7 +136,10 @@ impl Parser {
                     self.next();
                     self.parse_expr()?
                 } else {
-                    FakeSpec::Leaf(key.clone(), Vec::new(), None)
+                    // Sugar (`{ datetime@fr }` ⇔ `{ datetime: datetime@fr }`) still needs to
+                    // consume a trailing `(args)`/`@locale` on the bare key — reuses the same
+                    // tail-parsing logic as an explicit type_atom, see `parse_leaf_tail`.
+                    self.parse_leaf_tail(key.clone())?
                 };
                 fields.push((key, value));
                 match self.peek() {
@@ -171,6 +174,14 @@ impl Parser {
             Some(Token::Ident(name)) => name,
             _ => unreachable!("parse_type_atom only called when peek() is Ident"),
         };
+        self.parse_leaf_tail(name)
+    }
+
+    /// Parses the optional `("(" arg ("," arg)* ")")? ("@" locale)?` tail that follows a leaf's
+    /// name, given that name has already been consumed. Shared between `parse_type_atom` (an
+    /// explicit type reference) and `parse_object`'s field sugar (a bare key doubling as a type
+    /// reference), so both forms honor args/locale identically.
+    fn parse_leaf_tail(&mut self, name: String) -> Result<FakeSpec> {
         let mut args = Vec::new();
         if self.peek() == Some(&Token::LParen) {
             self.next();
@@ -543,6 +554,28 @@ mod tests {
         let obj = out.as_object().unwrap();
         assert!(!obj["name"].as_str().unwrap().is_empty());
         assert!(!obj["phone"].as_str().unwrap().is_empty());
+    }
+
+    #[test]
+    fn sugar_field_honors_trailing_locale_and_args() {
+        // regression: `{datetime, datetime@fr}` used to fail with "expected ',' or '}', found
+        // At" because the sugar path built a bare Leaf and never checked for a trailing
+        // `@locale`/`(args)`. Distinct keys here since sugar reuses the ident as the JSON key —
+        // `{datetime, datetime@fr}` itself would collapse to one field (last write wins).
+        let out = generate(&parse("{ words(2), created_fr: datetime@fr }").unwrap()).unwrap();
+        let obj = out.as_object().unwrap();
+        assert_eq!(obj["words"].as_str().unwrap().split(' ').count(), 2);
+        assert!(obj["created_fr"].as_str().unwrap().contains('/'));
+    }
+
+    #[test]
+    fn single_sugar_field_with_locale_no_trailing_comma() {
+        // `{name@fr}` — sugar + locale as the object's only field, no comma after to hide a
+        // missed-token bug the way `{datetime, datetime@fr}` did (RBrace immediately follows).
+        let out = generate(&parse("{name@fr}").unwrap()).unwrap();
+        let obj = out.as_object().unwrap();
+        assert_eq!(obj.len(), 1);
+        assert!(!obj["name"].as_str().unwrap().is_empty());
     }
 
     #[test]
