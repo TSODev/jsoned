@@ -136,7 +136,11 @@ Approach: JSON Schema (Draft 4→2020-12) via the `jsonschema` crate. Schema loa
       overrides. Deliberately not exposed on every leaf: most of `fr_fr`'s data (city, company,
       job, lorem) silently falls back to English in the underlying crate, so an unsupported
       `@fr` combination (e.g. `city@fr`) is a hard error rather than a silent English fallback
-      mislabeled as French. See `src/fake_data.rs`.
+      mislabeled as French. Also includes `date`/`datetime` leaves (`date(minYear,maxYear)`,
+      hand-rolled against `chrono` rather than `fake`'s own `faker::chrono`, since no locale
+      there overrides the format string either) — `@fr` on these switches only the rendered
+      format (`%d/%m/%Y` vs `%Y-%m-%d`), not the value, since a date isn't culture-specific data
+      the way a name is. See `src/fake_data.rs`.
 - [ ] **More plugins** — codegen (struct/type generation for a target language), web import +
       prune (fetch JSON, select a subtree to keep) — see "Plugin system" above; each will likely
       need the `Plugin` trait to grow (non-`JNode` output, async work)

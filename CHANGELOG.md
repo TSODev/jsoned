@@ -29,6 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   French label, unsupported `@fr` combinations are a hard parse-time-adjacent error (`fake error:
   'fr' has no localized data for 'city' — omit @fr`), and any locale other than `fr` is rejected
   outright (`unknown locale 'es' (only 'fr' is supported)`).
+- `fake` plugin `date`/`datetime` leaves — `date(minYear,maxYear)` (default: last 20 years) and
+  `datetime(minYear,maxYear)` generate a random date, optionally with a time of day, as an ISO
+  8601-ish string (`%Y-%m-%d` / `%Y-%m-%dT%H:%M:%SZ`). `@fr` switches the rendered format to
+  `%d/%m/%Y` / `%d/%m/%Y %H:%M:%S` — deliberately *not* routed through `fake`'s own
+  `faker::chrono` locales, since none of them override the format-string constant either (verified
+  against the crate source), so it would have been exactly as non-functional as `city@fr` was
+  before the guardrail above. Hand-rolled instead against `chrono` directly, which also moves from
+  `[dev-dependencies]` to a real `[dependencies]` entry (default features, no `serde`, since the
+  plugin only ever calls `.format()` to produce a `String`).
 
 ## [0.5.1] — 2026-07-06
 

@@ -11,9 +11,13 @@
 //! `fr_fr` itself only has real French data for names and phone numbers, everything else (city,
 //! company, job, lorem text) silently falls back to English/Latin defaults in the underlying
 //! crate. Rather than expose `@fr` everywhere and let it silently do nothing useful on
-//! `city@fr`, `generate_leaf` only honors it on `name`/`first_name`/`last_name`/`phone` — the
-//! leaves `fr_fr` actually overrides — and rejects any other `@fr` combination with an explicit
-//! error instead of silently falling back to English.
+//! `city@fr`, `generate_leaf` only honors it on `name`/`first_name`/`last_name`/`phone`/`date`/
+//! `datetime` and rejects any other `@fr` combination with an explicit error instead of silently
+//! falling back to English. `date`/`datetime` are a different flavor of "@fr" than the other
+//! four: the date *value* is never locale-specific, only its rendered *format* is (`%Y-%m-%d` vs
+//! `%d/%m/%Y`) — `fake`'s own `faker::chrono` locales don't actually localize the format string
+//! either (no locale overrides `CHRONO_DEFAULT_DATE_FORMAT`), so date/time generation is
+//! hand-rolled here against `chrono` directly rather than routed through `fake` at all.
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::Value;
@@ -249,6 +253,29 @@ fn range_args(name: &str, args: &[f64], default: (f64, f64)) -> Result<(f64, f64
     }
 }
 
+fn random_date(min_year: i64, max_year: i64) -> chrono::NaiveDate {
+    use chrono::NaiveDate;
+    use fake::Fake;
+
+    let year = (min_year..max_year + 1).fake::<i64>() as i32;
+    let month = (1..=12).fake::<u32>();
+    let mut day = (1..=31).fake::<u32>();
+    while NaiveDate::from_ymd_opt(year, month, day).is_none() {
+        day -= 1;
+    }
+    NaiveDate::from_ymd_opt(year, month, day).unwrap()
+}
+
+fn random_time() -> chrono::NaiveTime {
+    use chrono::NaiveTime;
+    use fake::Fake;
+
+    let hour = (0..24).fake::<u32>();
+    let min = (0..60).fake::<u32>();
+    let sec = (0..60).fake::<u32>();
+    NaiveTime::from_hms_opt(hour, min, sec).unwrap()
+}
+
 fn fr_unsupported(name: &str, fr: bool) -> Result<()> {
     if fr {
         bail!("fake error: 'fr' has no localized data for '{name}' — omit @fr");
@@ -295,6 +322,22 @@ fn generate_leaf(name: &str, args: &[f64], locale: Option<&str>) -> Result<Value
         "phone" => {
             no_args(name, args)?;
             Ok(Value::String(if fr { FrPhoneNumber().fake() } else { PhoneNumber().fake() }))
+        }
+        "date" => {
+            use chrono::Datelike;
+            let now_year = chrono::Utc::now().year() as f64;
+            let (min_year, max_year) = range_args(name, args, (now_year - 20.0, now_year))?;
+            let date = random_date(min_year as i64, max_year as i64);
+            let fmt = if fr { "%d/%m/%Y" } else { "%Y-%m-%d" };
+            Ok(Value::String(date.format(fmt).to_string()))
+        }
+        "datetime" => {
+            use chrono::Datelike;
+            let now_year = chrono::Utc::now().year() as f64;
+            let (min_year, max_year) = range_args(name, args, (now_year - 20.0, now_year))?;
+            let dt = chrono::NaiveDateTime::new(random_date(min_year as i64, max_year as i64), random_time());
+            let fmt = if fr { "%d/%m/%Y %H:%M:%S" } else { "%Y-%m-%dT%H:%M:%SZ" };
+            Ok(Value::String(dt.format(fmt).to_string()))
         }
         "username" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(Username().fake())) }
         "email" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(SafeEmail().fake())) }
@@ -514,6 +557,42 @@ mod tests {
         let spec = parse("name@es").unwrap();
         let err = generate(&spec).unwrap_err().to_string();
         assert!(err.contains("unknown locale"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn date_default_format_is_iso() {
+        let out = generate(&parse("date").unwrap()).unwrap();
+        let s = out.as_str().unwrap().to_string();
+        assert_eq!(s.len(), 10, "expected YYYY-MM-DD, got '{s}'");
+        assert_eq!(s.as_bytes()[4], b'-');
+        assert_eq!(s.as_bytes()[7], b'-');
+    }
+
+    #[test]
+    fn date_fr_format_is_ddmmyyyy() {
+        let out = generate(&parse("date@fr").unwrap()).unwrap();
+        let s = out.as_str().unwrap().to_string();
+        assert_eq!(s.len(), 10, "expected DD/MM/YYYY, got '{s}'");
+        assert_eq!(s.as_bytes()[2], b'/');
+        assert_eq!(s.as_bytes()[5], b'/');
+    }
+
+    #[test]
+    fn date_respects_year_range() {
+        let spec = parse("date(2000,2001)").unwrap();
+        for _ in 0..50 {
+            let s = generate(&spec).unwrap();
+            let year: i32 = s.as_str().unwrap()[0..4].parse().unwrap();
+            assert!((2000..=2001).contains(&year), "{s} out of range");
+        }
+    }
+
+    #[test]
+    fn datetime_fr_format_has_slashes_and_time() {
+        let out = generate(&parse("datetime@fr").unwrap()).unwrap();
+        let s = out.as_str().unwrap().to_string();
+        assert!(s.contains('/'), "expected DD/MM/YYYY prefix in '{s}'");
+        assert!(s.contains(':'), "expected HH:MM:SS suffix in '{s}'");
     }
 
     #[test]

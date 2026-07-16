@@ -202,18 +202,27 @@ key doubles as the type). Leaves can take optional numeric arguments in parenthe
 | `float(min,max)` | float, range (default 0.0-1.0) | `min,max` |
 | `bool(pct)` | boolean, `pct`% chance of `true` (default 50) | `pct` |
 | `uuid` | a v4 UUID string | — |
+| `date(minYear,maxYear)` | date string, random day within the range (default: last 20 years) | `minYear,maxYear` |
+| `datetime(minYear,maxYear)` | date + random time of day, same range rules as `date` | `minYear,maxYear` |
 
 English data by default. `email` always resolves to `@example.{com,net,org}` — safe to paste
 anywhere, never a real address.
 
 #### Locale (`@fr`)
 
-Append `@fr` to `name`, `first_name`, `last_name`, or `phone` for French data, e.g. `name@fr` or
-`{ name: name@fr, phone: phone@fr }`. Only these four leaves are supported — the rest of the
-underlying data (city names, company names, job titles, lorem text) isn't actually localized for
-French in the `fake` crate, so `city@fr` is a hard error (`fake error: 'fr' has no localized data
-for 'city' — omit @fr`) rather than silently returning English data under a French label. Any
-locale other than `fr` (e.g. `name@es`) is also an error — no other locale is wired up yet.
+Append `@fr` to `name`, `first_name`, `last_name`, `phone`, `date`, or `datetime` for French
+output, e.g. `name@fr` or `{ name: name@fr, phone: phone@fr }`. Only these six leaves are
+supported — the rest of the underlying data (city names, company names, job titles, lorem text)
+isn't actually localized for French in the `fake` crate, so `city@fr` is a hard error (`fake
+error: 'fr' has no localized data for 'city' — omit @fr`) rather than silently returning English
+data under a French label. Any locale other than `fr` (e.g. `name@es`) is also an error — no
+other locale is wired up yet.
+
+For `date`/`datetime`, `@fr` only changes the rendered *format* (`%d/%m/%Y` instead of
+`%Y-%m-%d`), not the underlying random value — dates aren't culture-specific data the way names
+are, and `fake`'s own locale system doesn't localize date formats either (verified: no locale
+overrides the format string, so `date` generation is hand-rolled against `chrono` directly rather
+than routed through `fake`).
 
 > Plugins are compiled into the binary — there's no dynamic loading of external/third-party
 > plugins (yet). Adding one means adding a Rust module that implements the `Plugin` trait.
