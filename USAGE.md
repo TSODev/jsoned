@@ -203,8 +203,17 @@ key doubles as the type). Leaves can take optional numeric arguments in parenthe
 | `bool(pct)` | boolean, `pct`% chance of `true` (default 50) | `pct` |
 | `uuid` | a v4 UUID string | — |
 
-English data only for v1. `email` always resolves to `@example.{com,net,org}` — safe to paste
+English data by default. `email` always resolves to `@example.{com,net,org}` — safe to paste
 anywhere, never a real address.
+
+#### Locale (`@fr`)
+
+Append `@fr` to `name`, `first_name`, `last_name`, or `phone` for French data, e.g. `name@fr` or
+`{ name: name@fr, phone: phone@fr }`. Only these four leaves are supported — the rest of the
+underlying data (city names, company names, job titles, lorem text) isn't actually localized for
+French in the `fake` crate, so `city@fr` is a hard error (`fake error: 'fr' has no localized data
+for 'city' — omit @fr`) rather than silently returning English data under a French label. Any
+locale other than `fr` (e.g. `name@es`) is also an error — no other locale is wired up yet.
 
 > Plugins are compiled into the binary — there's no dynamic loading of external/third-party
 > plugins (yet). Adding one means adding a Rust module that implements the `Plugin` trait.

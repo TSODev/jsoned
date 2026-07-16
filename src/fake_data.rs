@@ -2,9 +2,18 @@
 //! Grammar: expr := object | array | type_atom
 //!          object := "{" field ("," field)* "}"        field := ident (":" expr)?
 //!          array  := "[" count "]" expr
-//!          type_atom := ident ("(" number ("," number)* ")")?
+//!          type_atom := ident ("(" number ("," number)* ")")? ("@" locale)?
 //! Two phases, kept separate like the rest of the codebase separates syntax from semantics:
 //! `parse` is purely syntactic (never touches the `fake` crate), `generate` is the catalog lookup.
+//!
+//! Locale support (`@fr`) is intentionally narrow: the `fake` crate compiles in seven locales
+//! unconditionally (no Cargo feature gates them), but most only override a handful of fields —
+//! `fr_fr` itself only has real French data for names and phone numbers, everything else (city,
+//! company, job, lorem text) silently falls back to English/Latin defaults in the underlying
+//! crate. Rather than expose `@fr` everywhere and let it silently do nothing useful on
+//! `city@fr`, `generate_leaf` only honors it on `name`/`first_name`/`last_name`/`phone` — the
+//! leaves `fr_fr` actually overrides — and rejects any other `@fr` combination with an explicit
+//! error instead of silently falling back to English.
 
 use anyhow::{anyhow, bail, Result};
 use serde_json::Value;
@@ -16,7 +25,7 @@ use crate::tree::JNode;
 enum FakeSpec {
     Object(Vec<(String, FakeSpec)>),
     Array(usize, Box<FakeSpec>),
-    Leaf(String, Vec<f64>),
+    Leaf(String, Vec<f64>, Option<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +38,7 @@ enum Token {
     RParen,
     Colon,
     Comma,
+    At,
     Ident(String),
     Num(f64),
 }
@@ -49,6 +59,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>> {
             ')' => { tokens.push(Token::RParen); i += 1; }
             ':' => { tokens.push(Token::Colon); i += 1; }
             ',' => { tokens.push(Token::Comma); i += 1; }
+            '@' => { tokens.push(Token::At); i += 1; }
             c if c.is_ascii_digit() => {
                 let start = i;
                 while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
@@ -121,7 +132,7 @@ impl Parser {
                     self.next();
                     self.parse_expr()?
                 } else {
-                    FakeSpec::Leaf(key.clone(), Vec::new())
+                    FakeSpec::Leaf(key.clone(), Vec::new(), None)
                 };
                 fields.push((key, value));
                 match self.peek() {
@@ -176,7 +187,17 @@ impl Parser {
             }
             self.expect(Token::RParen)?;
         }
-        Ok(FakeSpec::Leaf(name, args))
+        let locale = if self.peek() == Some(&Token::At) {
+            self.next();
+            match self.next() {
+                Some(Token::Ident(loc)) => Some(loc),
+                Some(t) => bail!("fake parse error: expected locale name after '@', found {t:?}"),
+                None => bail!("fake parse error: expected locale name after '@', found end of input"),
+            }
+        } else {
+            None
+        };
+        Ok(FakeSpec::Leaf(name, args, locale))
     }
 }
 
@@ -228,7 +249,14 @@ fn range_args(name: &str, args: &[f64], default: (f64, f64)) -> Result<(f64, f64
     }
 }
 
-fn generate_leaf(name: &str, args: &[f64]) -> Result<Value> {
+fn fr_unsupported(name: &str, fr: bool) -> Result<()> {
+    if fr {
+        bail!("fake error: 'fr' has no localized data for '{name}' — omit @fr");
+    }
+    Ok(())
+}
+
+fn generate_leaf(name: &str, args: &[f64], locale: Option<&str>) -> Result<Value> {
     use fake::faker::address::en::{BuildingNumber, CityName, CountryName, StreetName, ZipCode};
     use fake::faker::boolean::en::Boolean;
     use fake::faker::company::en::CompanyName;
@@ -236,65 +264,96 @@ fn generate_leaf(name: &str, args: &[f64]) -> Result<Value> {
     use fake::faker::job::en::Title as JobTitle;
     use fake::faker::lorem::en::{Paragraph, Sentence, Word, Words};
     use fake::faker::name::en::{FirstName, LastName, Name};
+    use fake::faker::name::fr_fr::{
+        FirstName as FrFirstName, LastName as FrLastName, Name as FrName,
+    };
     use fake::faker::phone_number::en::PhoneNumber;
+    use fake::faker::phone_number::fr_fr::PhoneNumber as FrPhoneNumber;
     use fake::uuid::UUIDv4;
     use fake::Fake;
 
+    if let Some(loc) = locale {
+        if loc != "fr" {
+            bail!("fake error: unknown locale '{loc}' (only 'fr' is supported)");
+        }
+    }
+    let fr = locale.is_some();
+
     match name {
-        "name" => { no_args(name, args)?; Ok(Value::String(Name().fake())) }
-        "first_name" => { no_args(name, args)?; Ok(Value::String(FirstName().fake())) }
-        "last_name" => { no_args(name, args)?; Ok(Value::String(LastName().fake())) }
-        "username" => { no_args(name, args)?; Ok(Value::String(Username().fake())) }
-        "email" => { no_args(name, args)?; Ok(Value::String(SafeEmail().fake())) }
-        "phone" => { no_args(name, args)?; Ok(Value::String(PhoneNumber().fake())) }
+        "name" => {
+            no_args(name, args)?;
+            Ok(Value::String(if fr { FrName().fake() } else { Name().fake() }))
+        }
+        "first_name" => {
+            no_args(name, args)?;
+            Ok(Value::String(if fr { FrFirstName().fake() } else { FirstName().fake() }))
+        }
+        "last_name" => {
+            no_args(name, args)?;
+            Ok(Value::String(if fr { FrLastName().fake() } else { LastName().fake() }))
+        }
+        "phone" => {
+            no_args(name, args)?;
+            Ok(Value::String(if fr { FrPhoneNumber().fake() } else { PhoneNumber().fake() }))
+        }
+        "username" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(Username().fake())) }
+        "email" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(SafeEmail().fake())) }
         "address" => {
             no_args(name, args)?;
+            fr_unsupported(name, fr)?;
             let building: String = BuildingNumber().fake();
             let street: String = StreetName().fake();
             let city: String = CityName().fake();
             let zip: String = ZipCode().fake();
             Ok(Value::String(format!("{building} {street}, {city} {zip}")))
         }
-        "city" => { no_args(name, args)?; Ok(Value::String(CityName().fake())) }
-        "country" => { no_args(name, args)?; Ok(Value::String(CountryName().fake())) }
-        "zipcode" => { no_args(name, args)?; Ok(Value::String(ZipCode().fake())) }
+        "city" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(CityName().fake())) }
+        "country" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(CountryName().fake())) }
+        "zipcode" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(ZipCode().fake())) }
         "url" => {
             no_args(name, args)?;
+            fr_unsupported(name, fr)?;
             let user: String = Username().fake();
             let domain: String = DomainSuffix().fake();
             Ok(Value::String(format!("https://{user}.{domain}")))
         }
-        "job" => { no_args(name, args)?; Ok(Value::String(JobTitle().fake())) }
-        "company" => { no_args(name, args)?; Ok(Value::String(CompanyName().fake())) }
-        "word" => { no_args(name, args)?; Ok(Value::String(Word().fake())) }
+        "job" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(JobTitle().fake())) }
+        "company" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(CompanyName().fake())) }
+        "word" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(Word().fake())) }
         "words" => {
+            fr_unsupported(name, fr)?;
             let n = optional_count_arg(name, args, 3)?;
             let words: Vec<String> = Words(n..n + 1).fake();
             Ok(Value::String(words.join(" ")))
         }
         "sentence" => {
+            fr_unsupported(name, fr)?;
             let n = optional_count_arg(name, args, 6)?;
             Ok(Value::String(Sentence(n..n + 1).fake()))
         }
         "paragraph" => {
+            fr_unsupported(name, fr)?;
             let n = optional_count_arg(name, args, 3)?;
             Ok(Value::String(Paragraph(n..n + 1).fake()))
         }
         "number" => {
+            fr_unsupported(name, fr)?;
             let (min, max) = range_args(name, args, (0.0, 1000.0))?;
             let (min, max) = (min as i64, max as i64);
             Ok(Value::from((min..max + 1).fake::<i64>()))
         }
         "float" => {
+            fr_unsupported(name, fr)?;
             let (min, max) = range_args(name, args, (0.0, 1.0))?;
             let v: f64 = (min..max).fake();
             Ok(serde_json::json!(v))
         }
         "bool" => {
+            fr_unsupported(name, fr)?;
             let pct = optional_pct_arg(name, args, 50)?;
             Ok(Value::Bool(Boolean(pct).fake()))
         }
-        "uuid" => { no_args(name, args)?; Ok(Value::String(UUIDv4.fake())) }
+        "uuid" => { no_args(name, args)?; fr_unsupported(name, fr)?; Ok(Value::String(UUIDv4.fake())) }
         other => bail!("fake error: unknown type '{other}'"),
     }
 }
@@ -317,7 +376,7 @@ fn generate(spec: &FakeSpec) -> Result<Value> {
             }
             Ok(Value::Array(items))
         }
-        FakeSpec::Leaf(name, args) => generate_leaf(name, args),
+        FakeSpec::Leaf(name, args, locale) => generate_leaf(name, args, locale.as_deref()),
     }
 }
 
@@ -329,7 +388,7 @@ impl Plugin for FakePlugin {
     }
 
     fn prompt(&self) -> &'static str {
-        "fake spec (e.g. {name, email}, [5]name):"
+        "fake spec (e.g. {name, email}, [5]name, name@fr):"
     }
 
     fn run(&self, _input: &JNode, arg: &str) -> Result<JNode> {
@@ -433,6 +492,28 @@ mod tests {
     fn wrong_arg_count_is_a_generate_error() {
         let spec = parse("number(1,2,3)").unwrap();
         assert!(generate(&spec).is_err());
+    }
+
+    #[test]
+    fn fr_locale_applies_to_whitelisted_leaves() {
+        let out = generate(&parse("{ name: name@fr, phone: phone@fr }").unwrap()).unwrap();
+        let obj = out.as_object().unwrap();
+        assert!(!obj["name"].as_str().unwrap().is_empty());
+        assert!(!obj["phone"].as_str().unwrap().is_empty());
+    }
+
+    #[test]
+    fn fr_locale_on_unsupported_leaf_is_a_generate_error() {
+        let spec = parse("city@fr").unwrap();
+        let err = generate(&spec).unwrap_err().to_string();
+        assert!(err.contains("no localized data"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn unknown_locale_is_a_generate_error() {
+        let spec = parse("name@es").unwrap();
+        let err = generate(&spec).unwrap_err().to_string();
+        assert!(err.contains("unknown locale"), "unexpected error: {err}");
     }
 
     #[test]

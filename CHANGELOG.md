@@ -17,11 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   JSON; `[N]`'s count is always mandatory (no silent default-if-omitted) to avoid surprise array
   sizes. Recursive by construction — `{ user: { name, email }, tags: [3] word }` and even
   array-of-arrays nest for free, no special-casing in the parser. Headline use case: `[10] { name,
-  email, job }` seeds a ten-record array of fake users in one keystroke. English locale only for
-  v1 (`FR_FR` support is a clean future add, not a structural blocker). `fake` (the underlying
+  email, job }` seeds a ten-record array of fake users in one keystroke. `fake` (the underlying
   crate) moves from `[dev-dependencies]` (previously used only by the `examples/json_perf_gen.rs`
   benchmark generator) to a real `[dependencies]` entry, since this plugin ships in the binary.
   See `src/fake_data.rs`, `USAGE.md`'s `### fake` section.
+- `fake` plugin locale support — `@fr` on `name`/`first_name`/`last_name`/`phone` (e.g.
+  `name@fr`) draws French data instead of English. Deliberately not exposed on every leaf: `fake`
+  compiles in seven locales unconditionally, but `fr_fr` only overrides name and phone-number
+  data — city, company, job, and lorem text all silently fall back to English in the underlying
+  crate regardless of locale. Rather than let `city@fr` quietly return English data under a
+  French label, unsupported `@fr` combinations are a hard parse-time-adjacent error (`fake error:
+  'fr' has no localized data for 'city' — omit @fr`), and any locale other than `fr` is rejected
+  outright (`unknown locale 'es' (only 'fr' is supported)`).
 
 ## [0.5.1] — 2026-07-06
 
